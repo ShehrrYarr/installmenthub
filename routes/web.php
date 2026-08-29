@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\CollectionBookPrintController;
 use App\Http\Controllers\ThermalReceiptController;
 use Illuminate\Support\Facades\Route;
 use Livewire\Volt\Volt;
@@ -81,6 +82,7 @@ Route::middleware(['auth', 'tenant.resolve'])
 
         Volt::route('collections', 'collections.desk')->name('collections.desk');
         Volt::route('collections/book', 'collections.book')->name('collections.book');
+        Route::get('collections/book/print', CollectionBookPrintController::class)->name('collections.book.print');
 
         Volt::route('settings/appearance', 'settings.appearance')->name('settings.appearance');
         Volt::route('settings/staff', 'settings.staff')->name('settings.staff');
