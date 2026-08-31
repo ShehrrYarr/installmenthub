@@ -39,6 +39,15 @@ new #[Layout('layouts.tenant')] class extends Component
 
     public function addItem(): void
     {
+        $lastIndex = array_key_last($this->items);
+
+        if ($lastIndex !== null && ! $this->itemHasValidPrices($lastIndex)) {
+            $this->validateOnly("items.{$lastIndex}.cost_price", $this->itemRules(), $this->itemMessages());
+            $this->validateOnly("items.{$lastIndex}.selling_cash_price", $this->itemRules(), $this->itemMessages());
+
+            return;
+        }
+
         $this->items[] = ['product_id' => null, 'quantity' => 1, 'cost_price' => '0', 'selling_cash_price' => '0'];
     }
 
@@ -46,6 +55,43 @@ new #[Layout('layouts.tenant')] class extends Component
     {
         unset($this->items[$index]);
         $this->items = array_values($this->items);
+    }
+
+    public function validateItemPrices(int $index): void
+    {
+        $this->validateOnly("items.{$index}.cost_price", $this->itemRules(), $this->itemMessages());
+        $this->validateOnly("items.{$index}.selling_cash_price", $this->itemRules(), $this->itemMessages());
+    }
+
+    private function itemHasValidPrices(int $index): bool
+    {
+        $item = $this->items[$index];
+
+        return bccomp((string) ($item['cost_price'] ?: '0'), '0.01', 2) >= 0
+            && bccomp((string) ($item['selling_cash_price'] ?: '0'), '0.01', 2) >= 0;
+    }
+
+    /** @return array<string, string> */
+    private function itemRules(): array
+    {
+        return [
+            'items' => 'required|array|min:1',
+            'items.*.product_id' => 'required|exists:products,id',
+            'items.*.quantity' => 'required|integer|min:1',
+            'items.*.cost_price' => 'required|numeric|min:0.01',
+            'items.*.selling_cash_price' => 'required|numeric|min:0.01',
+        ];
+    }
+
+    /** @return array<string, string> */
+    private function itemMessages(): array
+    {
+        return [
+            'items.*.cost_price.required' => 'Enter a cost price.',
+            'items.*.cost_price.min' => 'Cost price must be greater than 0.',
+            'items.*.selling_cash_price.required' => 'Enter a selling cash price.',
+            'items.*.selling_cash_price.min' => 'Selling cash price must be greater than 0.',
+        ];
     }
 
     #[Computed]
@@ -104,13 +150,7 @@ new #[Layout('layouts.tenant')] class extends Component
     public function save(): void
     {
         $this->validate();
-        $this->validate([
-            'items' => 'required|array|min:1',
-            'items.*.product_id' => 'required|exists:products,id',
-            'items.*.quantity' => 'required|integer|min:1',
-            'items.*.cost_price' => 'required|numeric|min:0',
-            'items.*.selling_cash_price' => 'required|numeric|min:0',
-        ]);
+        $this->validate($this->itemRules(), $this->itemMessages());
 
         // `exists:products,id` (and the vendor_id rule above) run a plain DB
         // query that bypasses ShopScope, so they'd accept another shop's
@@ -223,11 +263,19 @@ new #[Layout('layouts.tenant')] class extends Component
                         </div>
                         <div class="sm:col-span-2">
                             <x-input-label value="Cost Price" />
-                            <x-text-input type="number" step="0.01" wire:model="items.{{ $index }}.cost_price" class="mt-1 block w-full" />
+                            <x-text-input type="number" step="0.01"
+                                wire:model="items.{{ $index }}.cost_price"
+                                wire:blur="validateItemPrices({{ $index }})"
+                                class="mt-1 block w-full {{ $errors->has('items.'.$index.'.cost_price') ? 'border-rose-500 focus:border-rose-500 focus:ring-rose-500' : '' }}" />
+                            <x-input-error :messages="$errors->get('items.'.$index.'.cost_price')" class="mt-1" />
                         </div>
                         <div class="sm:col-span-3">
                             <x-input-label value="Selling Cash Price" />
-                            <x-text-input type="number" step="0.01" wire:model="items.{{ $index }}.selling_cash_price" class="mt-1 block w-full" />
+                            <x-text-input type="number" step="0.01"
+                                wire:model="items.{{ $index }}.selling_cash_price"
+                                wire:blur="validateItemPrices({{ $index }})"
+                                class="mt-1 block w-full {{ $errors->has('items.'.$index.'.selling_cash_price') ? 'border-rose-500 focus:border-rose-500 focus:ring-rose-500' : '' }}" />
+                            <x-input-error :messages="$errors->get('items.'.$index.'.selling_cash_price')" class="mt-1" />
                         </div>
                         <div class="sm:col-span-1 flex justify-end">
                             @if (count($items) > 1)

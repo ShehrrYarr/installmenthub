@@ -27,8 +27,23 @@
     <div class="mx-auto bg-white p-6" style="max-width: 210mm;">
         <div class="text-center pb-3 border-b-2 border-black">
             <p class="text-lg font-bold uppercase">{{ $shop?->name ?? config('app.name') }}</p>
-            <p class="text-sm font-semibold">Customers Collection Sheet</p>
-            <p class="text-xs text-gray-600">Generated {{ $generatedAt->format('d-M-Y, h:i A') }} · {{ $customerCount }} {{ Str::plural('customer', $customerCount) }} · Rs. {{ number_format((float) $grandTotal, 2) }} total</p>
+            <p class="text-sm font-semibold">Customers Collection Sheet — {{ $monthLabel }}{{ $isCurrentMonth ? '' : ' (historical snapshot)' }}</p>
+            <p class="text-xs text-gray-600">Generated {{ $generatedAt->format('d-M-Y, h:i A') }} · {{ $customerCount }} {{ Str::plural('customer', $customerCount) }} · Rs. {{ number_format((float) $grandTotal, 2) }} due this sheet</p>
+        </div>
+
+        <div class="mt-3 grid grid-cols-3 gap-2 text-center border-b border-black pb-3">
+            <div>
+                <p class="text-[10px] uppercase text-gray-600">Total Amount</p>
+                <p class="font-semibold">Rs. {{ number_format((float) $summary['totalAmount'], 2) }}</p>
+            </div>
+            <div>
+                <p class="text-[10px] uppercase text-gray-600">Total Receivable</p>
+                <p class="font-semibold">Rs. {{ number_format((float) $summary['totalReceivable'], 2) }}</p>
+            </div>
+            <div>
+                <p class="text-[10px] uppercase text-gray-600">Overdue</p>
+                <p class="font-semibold">Rs. {{ number_format((float) $summary['totalOverdue'], 2) }}</p>
+            </div>
         </div>
 
         @forelse ($groups as $group)

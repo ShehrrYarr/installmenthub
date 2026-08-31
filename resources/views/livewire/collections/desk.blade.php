@@ -228,13 +228,9 @@ new #[Layout('layouts.tenant')] class extends Component
 
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div class="lg:col-span-1 space-y-3">
-            <div class="relative">
-                <x-tenant-icon name="magnifying-glass" class="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
-                <input type="search" wire:model.live.debounce.250ms="query" placeholder="Agreement No / CNIC / Phone / Serial…"
-                    class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-800 pl-10 shadow-sm focus:border-walnut-400 focus:ring-walnut-400">
-            </div>
+            <x-search-input model="query" :debounce="250" placeholder="Agreement No / CNIC / Phone / Serial…" />
 
-            <div class="space-y-2">
+            <div class="space-y-2" wire:loading.class="opacity-50 pointer-events-none" wire:target="query">
                 @forelse ($this->results as $result)
                     <button type="button" wire:click="select({{ $result->id }})"
                         class="w-full text-left rounded-xl border border-white/40 dark:border-gray-700/60 bg-white/70 dark:bg-gray-800/60 backdrop-blur p-3 hover:border-walnut-200">

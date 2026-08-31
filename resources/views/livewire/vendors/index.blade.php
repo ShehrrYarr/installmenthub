@@ -64,11 +64,7 @@ new #[Layout('layouts.tenant')] class extends Component
 
     <div class="space-y-4">
         <div class="flex flex-col sm:flex-row gap-3">
-            <div class="relative flex-1">
-                <x-tenant-icon name="magnifying-glass" class="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
-                <input type="search" wire:model.live.debounce.300ms="search" placeholder="Search by name, phone, contact person…"
-                    class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-800 pl-10 shadow-sm focus:border-walnut-400 focus:ring-walnut-400">
-            </div>
+            <x-search-input model="search" placeholder="Search by name, phone, contact person…" class="flex-1" />
             <select wire:model.live="status" class="rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-800 shadow-sm">
                 <option value="all">All statuses</option>
                 <option value="active">Active</option>
@@ -76,7 +72,7 @@ new #[Layout('layouts.tenant')] class extends Component
             </select>
         </div>
 
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4" wire:loading.class="opacity-50 pointer-events-none" wire:target="search">
             @forelse ($vendors as $vendor)
                 <div class="rounded-2xl border border-white/40 dark:border-gray-700/60 bg-white/70 dark:bg-gray-800/60 backdrop-blur-xl shadow-lg shadow-gray-900/5 p-5 space-y-3">
                     <div class="flex items-start justify-between">

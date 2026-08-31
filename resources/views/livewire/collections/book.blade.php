@@ -10,14 +10,23 @@ new #[Layout('layouts.tenant')] class extends Component
     #[Url(as: 'q')]
     public string $search = '';
 
+    #[Url(as: 'month')]
+    public string $month = '';
+
     public function with(): array
     {
-        $groups = CollectionBook::groupedRows($this->search);
+        $month = CollectionBook::resolveMonth($this->month);
+        $groups = CollectionBook::groupedRows($this->search, $month);
 
         return [
             'groups' => $groups,
             'customerCount' => $groups->sum(fn (array $group) => $group['customers']->count()),
             'grandTotal' => (string) $groups->reduce(fn ($carry, $group) => bcadd($carry, $group['areaTotal'], 2), '0.00'),
+            'resolvedMonth' => $month,
+            'monthLabel' => \Illuminate\Support\Carbon::createFromFormat('Y-m', $month)->format('F Y'),
+            'isCurrentMonth' => $month === now()->format('Y-m'),
+            'months' => CollectionBook::availableMonths(),
+            'summary' => CollectionBook::monthSummary($month),
         ];
     }
 } ?>
@@ -25,17 +34,44 @@ new #[Layout('layouts.tenant')] class extends Component
 @slot('header')
     <div>
         <h1 class="text-xl font-semibold text-gray-900 dark:text-white">Collection Book</h1>
-        <p class="text-sm text-gray-500 dark:text-gray-400">Everyone due this month, plus anyone still behind from before</p>
+        <p class="text-sm text-gray-500 dark:text-gray-400">
+            @if ($isCurrentMonth)
+                Everyone due this month, plus anyone still behind from before
+            @else
+                Snapshot of {{ $monthLabel }} — who was due, and who was still behind, as of then
+            @endif
+        </p>
     </div>
 @endslot
 
 <div>
-    <div class="mb-4 flex flex-col sm:flex-row sm:items-center gap-3">
-        <input type="search" wire:model.live.debounce.300ms="search"
-               placeholder="Search by name, CNIC, or phone…"
-               class="block w-full max-w-md rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-900 shadow-sm focus:border-walnut-400 focus:ring-walnut-400">
+    <p class="mb-2 text-xs font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">Summary for {{ $monthLabel }}</p>
+    <div class="mb-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div class="rounded-2xl border border-white/40 dark:border-gray-700/60 bg-white/70 dark:bg-gray-800/60 backdrop-blur-xl shadow-lg shadow-gray-900/5 px-4 py-3">
+            <p class="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Total Amount</p>
+            <p class="mt-1 text-lg font-semibold text-gray-900 dark:text-white">Rs. {{ number_format((float) $summary['totalAmount'], 2) }}</p>
+        </div>
+        <div class="rounded-2xl border border-white/40 dark:border-gray-700/60 bg-white/70 dark:bg-gray-800/60 backdrop-blur-xl shadow-lg shadow-gray-900/5 px-4 py-3">
+            <p class="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Total Receivable</p>
+            <p class="mt-1 text-lg font-semibold text-gray-900 dark:text-white">Rs. {{ number_format((float) $summary['totalReceivable'], 2) }}</p>
+        </div>
+        <div class="rounded-2xl border border-white/40 dark:border-gray-700/60 bg-white/70 dark:bg-gray-800/60 backdrop-blur-xl shadow-lg shadow-gray-900/5 px-4 py-3">
+            <p class="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Overdue</p>
+            <p class="mt-1 text-lg font-semibold text-rose-600 dark:text-rose-400">Rs. {{ number_format((float) $summary['totalOverdue'], 2) }}</p>
+        </div>
+    </div>
 
-        <a href="{{ route('tenant.collections.book.print', ['q' => $search]) }}"
+    <div class="mb-4 flex flex-col sm:flex-row sm:items-center gap-3">
+        <x-search-input model="search" placeholder="Search by name, CNIC, or phone…" class="w-full max-w-md" />
+
+        <select wire:model.live="month"
+                class="block w-full sm:w-48 rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-900 shadow-sm focus:border-walnut-400 focus:ring-walnut-400">
+            @foreach ($months as $option)
+                <option value="{{ $option['value'] }}">{{ $option['label'] }}</option>
+            @endforeach
+        </select>
+
+        <a href="{{ route('tenant.collections.book.print', ['q' => $search, 'month' => $resolvedMonth]) }}"
            target="_blank"
            class="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 sm:ml-auto">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
@@ -47,11 +83,11 @@ new #[Layout('layouts.tenant')] class extends Component
 
     @if ($customerCount > 0)
         <p class="mb-4 text-sm text-gray-500 dark:text-gray-400">
-            {{ $customerCount }} {{ Str::plural('customer', $customerCount) }} due · Rs. {{ number_format((float) $grandTotal, 2) }} total
+            {{ $customerCount }} {{ Str::plural('customer', $customerCount) }} due in {{ $monthLabel }} · Rs. {{ number_format((float) $grandTotal, 2) }} total
         </p>
     @endif
 
-    <div class="space-y-8">
+    <div class="space-y-8" wire:loading.class="opacity-50 pointer-events-none" wire:target="search,month">
         @forelse ($groups as $group)
             <section>
                 <h2 class="mb-3 flex items-baseline justify-between border-b border-gray-200 dark:border-gray-700 pb-2">
@@ -121,7 +157,11 @@ new #[Layout('layouts.tenant')] class extends Component
             </section>
         @empty
             <div class="rounded-2xl border border-white/40 dark:border-gray-700/60 bg-white/70 dark:bg-gray-800/60 px-4 py-10 text-center text-gray-400">
-                Nobody's due this month, and nothing's overdue. 🎉
+                @if ($isCurrentMonth)
+                    Nobody's due this month, and nothing's overdue. 🎉
+                @else
+                    Nobody was due in {{ $monthLabel }}, and nothing was overdue by then.
+                @endif
             </div>
         @endforelse
     </div>

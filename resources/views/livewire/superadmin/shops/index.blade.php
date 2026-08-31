@@ -58,8 +58,7 @@ new #[Layout('layouts.super-admin')] class extends Component
 
     <div class="space-y-4">
         <div class="flex flex-col sm:flex-row gap-3">
-            <input type="search" wire:model.live.debounce.300ms="search" placeholder="Search shops…"
-                class="w-full sm:w-80 rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-white pl-4 shadow-sm focus:border-walnut-400 focus:ring-walnut-400">
+            <x-search-input model="search" placeholder="Search shops…" class="w-full sm:w-80" />
             <select wire:model.live="status" class="rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-white shadow-sm">
                 <option value="all">All statuses</option>
                 <option value="trial">Trial</option>
@@ -68,7 +67,7 @@ new #[Layout('layouts.super-admin')] class extends Component
             </select>
         </div>
 
-        <div class="rounded-2xl border border-white/40 dark:border-gray-700/60 bg-white/70 dark:bg-gray-800/60 backdrop-blur-xl shadow-lg shadow-gray-900/5 overflow-hidden">
+        <div class="rounded-2xl border border-white/40 dark:border-gray-700/60 bg-white/70 dark:bg-gray-800/60 backdrop-blur-xl shadow-lg shadow-gray-900/5 overflow-hidden" wire:loading.class="opacity-50 pointer-events-none" wire:target="search">
             <div class="overflow-x-auto">
                 <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
                     <thead class="bg-gray-50 dark:bg-gray-900/80">
