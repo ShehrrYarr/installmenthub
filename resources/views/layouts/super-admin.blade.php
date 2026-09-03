@@ -28,6 +28,7 @@
                     <nav class="hidden sm:flex items-center gap-6 text-sm font-medium text-walnut-900/70 dark:text-walnut-50/70">
                         <a href="{{ \Illuminate\Support\Facades\Route::has('superadmin.dashboard') ? route('superadmin.dashboard') : '#' }}" class="hover:text-walnut-900 dark:hover:text-white">Dashboard</a>
                         <a href="{{ \Illuminate\Support\Facades\Route::has('superadmin.shops.index') ? route('superadmin.shops.index') : '#' }}" class="hover:text-walnut-900 dark:hover:text-white">Shops</a>
+                        <a href="{{ \Illuminate\Support\Facades\Route::has('superadmin.developer-tools') ? route('superadmin.developer-tools') : '#' }}" class="hover:text-walnut-900 dark:hover:text-white">Developer Tools</a>
                     </nav>
 
                     @auth

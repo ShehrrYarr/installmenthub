@@ -38,6 +38,8 @@ Route::middleware(['auth', 'role:Super Admin'])
         Volt::route('shops/create', 'superadmin.shops.form')->name('shops.create');
         Volt::route('shops/{shop}/edit', 'superadmin.shops.form')->name('shops.edit');
         Volt::route('shops/{shop}/staff', 'superadmin.shops.staff')->name('shops.staff');
+
+        Volt::route('developer-tools', 'superadmin.developer-tools')->name('developer-tools');
     });
 
 // Tenant — each shop gets its own URL (/s/{shop-slug}/...). ResolveTenant

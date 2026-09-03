@@ -169,7 +169,7 @@ new #[Layout('layouts.tenant')] class extends Component
             return;
         }
 
-        DB::transaction(function () {
+        $order = DB::transaction(function () {
             $total = $this->total;
 
             $order = PurchaseOrder::create([
@@ -195,13 +195,15 @@ new #[Layout('layouts.tenant')] class extends Component
                 ]);
             }
 
-            session()->flash('status', "Purchase order {$order->po_number} created. Receive stock to register serial numbers.");
-
-            $this->redirect(
-                \Illuminate\Support\Facades\Route::has('tenant.purchase-orders.receive') ? route('tenant.purchase-orders.receive', $order) : '/',
-                navigate: true
-            );
+            return $order;
         });
+
+        session()->flash('status', "Purchase order {$order->po_number} created. Receive stock to register serial numbers.");
+
+        $this->redirect(
+            \Illuminate\Support\Facades\Route::has('tenant.purchase-orders.receive') ? route('tenant.purchase-orders.receive', $order) : '/',
+            navigate: true
+        );
     }
 } ?>
 

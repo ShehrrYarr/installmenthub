@@ -244,7 +244,7 @@ new #[Layout('layouts.tenant')] class extends Component
             return;
         }
 
-        DB::transaction(function () {
+        $agreement = DB::transaction(function () {
             $calculator = $this->calculator;
             $schedule = $calculator->schedule($this->startDate);
 
@@ -318,13 +318,15 @@ new #[Layout('layouts.tenant')] class extends Component
                 'created_by' => auth()->id(),
             ]);
 
-            session()->flash('status', "Agreement {$agreement->agreement_number} created and awaiting approval.");
-
-            $this->redirect(
-                \Illuminate\Support\Facades\Route::has('tenant.agreements.index') ? route('tenant.agreements.index') : '/',
-                navigate: true
-            );
+            return $agreement;
         });
+
+        session()->flash('status', "Agreement {$agreement->agreement_number} created and awaiting approval.");
+
+        $this->redirect(
+            \Illuminate\Support\Facades\Route::has('tenant.agreements.index') ? route('tenant.agreements.index') : '/',
+            navigate: true
+        );
     }
 } ?>
 
