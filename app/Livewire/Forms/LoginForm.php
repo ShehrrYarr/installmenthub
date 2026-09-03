@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Forms;
 
+use App\Models\Shop;
 use Illuminate\Auth\Events\Lockout;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\RateLimiter;
@@ -21,6 +22,12 @@ class LoginForm extends Form
     #[Validate('boolean')]
     public bool $remember = false;
 
+    /** Set by the shop-scoped login page — the account must belong to this shop (Super Admins excepted). */
+    public ?Shop $shop = null;
+
+    /** Set by the Super Admin login page — the account must carry the Super Admin role. */
+    public bool $requireSuperAdmin = false;
+
     /**
      * Attempt to authenticate the request's credentials.
      *
@@ -38,12 +45,32 @@ class LoginForm extends Form
             ]);
         }
 
-        if (! Auth::user()->is_active) {
+        $user = Auth::user();
+
+        if (! $user->is_active) {
             Auth::logout();
             RateLimiter::hit($this->throttleKey());
 
             throw ValidationException::withMessages([
                 'form.email' => 'This account has been deactivated. Contact your shop admin.',
+            ]);
+        }
+
+        if ($this->requireSuperAdmin && ! $user->hasRole('Super Admin')) {
+            Auth::logout();
+            RateLimiter::hit($this->throttleKey());
+
+            throw ValidationException::withMessages([
+                'form.email' => 'This account does not have Super Admin access.',
+            ]);
+        }
+
+        if ($this->shop && $user->shop_id !== $this->shop->id && ! $user->hasRole('Super Admin')) {
+            Auth::logout();
+            RateLimiter::hit($this->throttleKey());
+
+            throw ValidationException::withMessages([
+                'form.email' => "This account doesn't have access to {$this->shop->name}.",
             ]);
         }
 

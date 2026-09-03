@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Support\Tenant;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -20,11 +21,15 @@ class EnsureUserIsActive
         $user = Auth::user();
 
         if ($user && ! $user->is_active) {
+            // Resolve the login destination before logging out — it may depend
+            // on the (about to be cleared) authenticated user's own shop.
+            $loginUrl = Tenant::loginUrlFor($request);
+
             Auth::logout();
             $request->session()->invalidate();
             $request->session()->regenerateToken();
 
-            return redirect()->route('login')->withErrors([
+            return redirect()->to($loginUrl)->withErrors([
                 'form.email' => 'This account has been deactivated. Contact your shop admin.',
             ]);
         }

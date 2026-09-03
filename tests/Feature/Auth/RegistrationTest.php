@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Auth;
 
+use App\Models\Shop;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Volt\Volt;
 use Tests\TestCase;
@@ -10,9 +11,16 @@ class RegistrationTest extends TestCase
 {
     use RefreshDatabase;
 
+    private function shop(): Shop
+    {
+        return Shop::create(['name' => 'Test Shop', 'slug' => 'test-shop']);
+    }
+
     public function test_registration_screen_can_be_rendered(): void
     {
-        $response = $this->get('/register');
+        $shop = $this->shop();
+
+        $response = $this->get("/{$shop->slug}/register");
 
         $response
             ->assertOk()
@@ -21,7 +29,9 @@ class RegistrationTest extends TestCase
 
     public function test_new_users_can_register(): void
     {
-        $component = Volt::test('pages.auth.register')
+        $shop = $this->shop();
+
+        $component = Volt::test('pages.auth.register', ['shop' => $shop])
             ->set('name', 'Test User')
             ->set('email', 'test@example.com')
             ->set('password', 'password')

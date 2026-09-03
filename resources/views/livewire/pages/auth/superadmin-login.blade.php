@@ -1,7 +1,6 @@
 <?php
 
 use App\Livewire\Forms\LoginForm;
-use App\Models\Shop;
 use Illuminate\Support\Facades\Session;
 use Livewire\Attributes\Layout;
 use Livewire\Volt\Component;
@@ -10,12 +9,9 @@ new #[Layout('layouts.guest')] class extends Component
 {
     public LoginForm $form;
 
-    public Shop $shop;
-
-    public function mount(Shop $shop): void
+    public function mount(): void
     {
-        $this->shop = $shop;
-        $this->form->shop = $shop;
+        $this->form->requireSuperAdmin = true;
     }
 
     /**
@@ -29,14 +25,13 @@ new #[Layout('layouts.guest')] class extends Component
 
         Session::regenerate();
 
-        $this->redirectIntended(default: route('tenant.dashboard', $this->shop, absolute: false), navigate: true);
+        $this->redirectIntended(default: route('superadmin.dashboard', absolute: false), navigate: true);
     }
 }; ?>
 
 <div>
     <div class="mb-6 text-center">
-        <p class="text-sm text-gray-500 dark:text-gray-400">{{ __('Signing in to') }}</p>
-        <p class="text-lg font-semibold text-gray-900 dark:text-white">{{ $shop->name }}</p>
+        <p class="text-lg font-semibold text-gray-900 dark:text-white">{{ __('Super Admin') }}</p>
     </div>
 
     <!-- Session Status -->
@@ -71,8 +66,8 @@ new #[Layout('layouts.guest')] class extends Component
         </div>
 
         <div class="flex items-center justify-end mt-4">
-            @if (Route::has('password.request'))
-                <a class="underline text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-walnut-400 dark:focus:ring-offset-gray-800" href="{{ route('password.request', ['shop' => $shop]) }}" wire:navigate>
+            @if (Route::has('superadmin.password.request'))
+                <a class="underline text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-walnut-400 dark:focus:ring-offset-gray-800" href="{{ route('superadmin.password.request') }}" wire:navigate>
                     {{ __('Forgot your password?') }}
                 </a>
             @endif

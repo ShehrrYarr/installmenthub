@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Models\Shop;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
 /**
@@ -49,6 +50,33 @@ class Tenant
     public static function id(): ?int
     {
         return static::current()?->id;
+    }
+
+    /**
+     * Where to send a guest who needs to log in for the given request — the
+     * shop's own login page when the request is under /{shop}/... or
+     * /s/{shop}/... (there's no single shared /login anymore), the Super
+     * Admin login for anything under /super-admin/..., or the landing page
+     * as a last resort (e.g. a bare /dashboard hit with no shop in the URL).
+     */
+    public static function loginUrlFor(Request $request): string
+    {
+        // The URL's own {shop} first (authoritative for a real /{shop}/... or
+        // /s/{shop}/... hit); falling back to the resolved tenant covers
+        // requests with no {shop} route param of their own, like the shared
+        // POST /livewire/update endpoint every Livewire action goes through.
+        $shop = $request->route('shop');
+        $shop = $shop instanceof Shop ? $shop : static::current();
+
+        if ($shop instanceof Shop) {
+            return route('login', ['shop' => $shop]);
+        }
+
+        if (str_starts_with((string) $request->route()?->getName(), 'superadmin.')) {
+            return route('superadmin.login');
+        }
+
+        return route('landing');
     }
 
     private static function resolve(): ?Shop

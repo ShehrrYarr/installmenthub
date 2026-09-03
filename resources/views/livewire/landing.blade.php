@@ -63,7 +63,7 @@ new #[Layout('layouts.marketing')] class extends Component
             <div class="flex items-center gap-4">
                 <a href="#demo" class="hidden sm:inline text-sm font-medium text-white/85 hover:text-white">Live Demo</a>
                 <a href="#features" class="hidden sm:inline text-sm font-medium text-white/85 hover:text-white">Features</a>
-                <a href="{{ route('login') }}" class="rounded-lg bg-walnut-900 px-4 py-2 text-sm font-medium text-white hover:bg-walnut-900/80">Log In</a>
+                <a href="{{ route('superadmin.login') }}" class="rounded-lg bg-walnut-900 px-4 py-2 text-sm font-medium text-white hover:bg-walnut-900/80">Admin Login</a>
             </div>
         </div>
     </header>

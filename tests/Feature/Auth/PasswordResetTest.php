@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Auth;
 
+use App\Models\Shop;
 use App\Models\User;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -13,9 +14,16 @@ class PasswordResetTest extends TestCase
 {
     use RefreshDatabase;
 
+    private function shop(): Shop
+    {
+        return Shop::create(['name' => 'Test Shop', 'slug' => 'test-shop']);
+    }
+
     public function test_reset_password_link_screen_can_be_rendered(): void
     {
-        $response = $this->get('/forgot-password');
+        $shop = $this->shop();
+
+        $response = $this->get("/{$shop->slug}/forgot-password");
 
         $response
             ->assertSeeVolt('pages.auth.forgot-password')
@@ -26,7 +34,8 @@ class PasswordResetTest extends TestCase
     {
         Notification::fake();
 
-        $user = User::factory()->create();
+        $shop = $this->shop();
+        $user = User::factory()->create(['shop_id' => $shop->id]);
 
         Volt::test('pages.auth.forgot-password')
             ->set('email', $user->email)
@@ -39,14 +48,15 @@ class PasswordResetTest extends TestCase
     {
         Notification::fake();
 
-        $user = User::factory()->create();
+        $shop = $this->shop();
+        $user = User::factory()->create(['shop_id' => $shop->id]);
 
         Volt::test('pages.auth.forgot-password')
             ->set('email', $user->email)
             ->call('sendPasswordResetLink');
 
-        Notification::assertSentTo($user, ResetPassword::class, function ($notification) {
-            $response = $this->get('/reset-password/'.$notification->token);
+        Notification::assertSentTo($user, ResetPassword::class, function ($notification) use ($shop) {
+            $response = $this->get("/{$shop->slug}/reset-password/{$notification->token}");
 
             $response
                 ->assertSeeVolt('pages.auth.reset-password')
@@ -60,14 +70,15 @@ class PasswordResetTest extends TestCase
     {
         Notification::fake();
 
-        $user = User::factory()->create();
+        $shop = $this->shop();
+        $user = User::factory()->create(['shop_id' => $shop->id]);
 
         Volt::test('pages.auth.forgot-password')
             ->set('email', $user->email)
             ->call('sendPasswordResetLink');
 
-        Notification::assertSentTo($user, ResetPassword::class, function ($notification) use ($user) {
-            $component = Volt::test('pages.auth.reset-password', ['token' => $notification->token])
+        Notification::assertSentTo($user, ResetPassword::class, function ($notification) use ($user, $shop) {
+            $component = Volt::test('pages.auth.reset-password', ['token' => $notification->token, 'shop' => $shop])
                 ->set('email', $user->email)
                 ->set('password', 'password')
                 ->set('password_confirmation', 'password');
@@ -75,7 +86,7 @@ class PasswordResetTest extends TestCase
             $component->call('resetPassword');
 
             $component
-                ->assertRedirect('/login')
+                ->assertRedirect(route('login', ['shop' => $shop], absolute: false))
                 ->assertHasNoErrors();
 
             return true;

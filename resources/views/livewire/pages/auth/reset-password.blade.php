@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Shop;
 use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Password;
@@ -18,12 +19,16 @@ new #[Layout('layouts.guest')] class extends Component
     public string $password = '';
     public string $password_confirmation = '';
 
+    /** Present when reached via /{shop}/reset-password/{token}; null via /superadmin/reset-password/{token}. */
+    public ?Shop $shop = null;
+
     /**
      * Mount the component.
      */
-    public function mount(string $token): void
+    public function mount(string $token, ?Shop $shop = null): void
     {
         $this->token = $token;
+        $this->shop = $shop;
 
         $this->email = request()->string('email');
     }
@@ -65,7 +70,12 @@ new #[Layout('layouts.guest')] class extends Component
 
         Session::flash('status', __($status));
 
-        $this->redirectRoute('login', navigate: true);
+        $this->redirect(
+            $this->shop
+                ? route('login', ['shop' => $this->shop], absolute: false)
+                : route('superadmin.login', absolute: false),
+            navigate: true
+        );
     }
 }; ?>
 
