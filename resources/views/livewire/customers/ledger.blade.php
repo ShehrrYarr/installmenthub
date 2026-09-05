@@ -236,8 +236,15 @@ new #[Layout('layouts.tenant')] class extends Component
             <div class="flex items-center justify-between p-5 pb-0">
                 <h3 class="font-semibold text-gray-900 dark:text-white">Ledger</h3>
                 @if (auth()->user()->hasRole('Shop Admin'))
-                    <button type="button" wire:click="toggleEntryForm" class="text-sm font-medium text-walnut-400 hover:text-walnut-400">
-                        {{ $showEntryForm ? 'Cancel' : '+ Add Entry' }}
+                    <button type="button" wire:click="toggleEntryForm"
+                        class="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium
+                               {{ $showEntryForm
+                                    ? 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'
+                                    : 'bg-walnut-600 text-white hover:bg-walnut-400' }}">
+                        @unless ($showEntryForm)
+                            <x-tenant-icon name="plus" class="h-4 w-4" />
+                        @endunless
+                        {{ $showEntryForm ? 'Cancel' : 'Add Entry' }}
                     </button>
                 @endif
             </div>
