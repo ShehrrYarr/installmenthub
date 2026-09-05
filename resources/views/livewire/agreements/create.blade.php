@@ -100,7 +100,8 @@ new #[Layout('layouts.tenant')] class extends Component
     public function updatedProductId(): void
     {
         $product = Product::find($this->product_id);
-        $this->productPrice = $product ? (string) $product->cash_price : '0';
+        $basis = \App\Support\Tenant::current()?->emi_price_basis ?? 'selling';
+        $this->productPrice = $product ? (string) ($basis === 'cost' ? $product->cost_price : $product->cash_price) : '0';
         $this->product_serial_id = null;
     }
 

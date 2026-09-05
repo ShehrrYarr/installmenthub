@@ -54,6 +54,11 @@ new #[Layout('layouts.tenant')] class extends Component
                 <x-tenant-icon name="users" class="h-4 w-4" />
                 Staff
             </a>
+            <a href="{{ route('tenant.settings.emi') }}" wire:navigate
+               class="flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700">
+                <x-tenant-icon name="calculator" class="h-4 w-4" />
+                EMI Settings
+            </a>
         @endif
     </div>
 

@@ -92,6 +92,7 @@ Route::middleware(['auth', 'tenant.resolve'])
 
         Volt::route('settings/appearance', 'settings.appearance')->name('settings.appearance');
         Volt::route('settings/staff', 'settings.staff')->name('settings.staff');
+        Volt::route('settings/emi', 'settings.emi')->name('settings.emi');
     });
 
 require __DIR__.'/auth.php';

@@ -32,6 +32,7 @@ class Shop extends Model
         'suspension_reason',
         'default_interest_rate',
         'default_processing_fee',
+        'emi_price_basis',
         'penalty_type',
         'penalty_rate',
         'grace_period_days',
