@@ -114,18 +114,38 @@
     </div>
 </aside>
 
-{{-- Mobile bottom action bar --}}
-<nav class="lg:hidden fixed inset-x-0 bottom-0 z-40 border-t border-gray-200 bg-white/90 backdrop-blur-xl pb-[env(safe-area-inset-bottom)]">
-    <div class="grid grid-cols-5 gap-1 px-1 py-2">
-        @foreach ($items->take(5) as $item)
-            <a href="{{ $link($item['route']) }}" wire:navigate
-               class="flex flex-col items-center gap-0.5 rounded-lg py-1.5 text-[11px] font-medium
-                      {{ $active($item['route'])
-                            ? 'text-[var(--theme-accent)]'
-                            : 'text-gray-500' }}">
-                <x-tenant-icon :name="$item['icon']" class="h-5 w-5" />
-                {{ $item['label'] }}
-            </a>
-        @endforeach
-    </div>
-</nav>
+{{-- Mobile bottom action bar — @persist keeps this exact DOM node across
+     wire:navigate page loads instead of rebuilding it fresh each time. Two
+     things still need JS (see resources/js/mobile-nav.js): persisted content
+     is never re-rendered after its first paint, so the "active page"
+     highlight has to be recomputed from the URL by hand on every
+     navigation; and browsers reset a scrollable element's scrollLeft when
+     it's detached/reattached during the page swap even though it's the same
+     node, so the horizontal scroll position is saved and restored by hand
+     too. --}}
+@persist('mobile-bottom-nav')
+    <nav data-mobile-nav
+         class="lg:hidden fixed inset-x-0 bottom-0 z-40 bg-white/90 backdrop-blur-xl pb-[env(safe-area-inset-bottom)] shadow-[0_-10px_30px_-6px_rgba(0,0,0,0.25)]">
+        <div class="relative">
+            <div data-mobile-nav-scroller class="flex gap-1 px-1 py-2 overflow-x-auto no-scrollbar">
+                @foreach ($items as $item)
+                    @php($href = $link($item['route']))
+                    {{-- The dashboard route immediately redirects to a role-specific
+                         sub-route (tenant.dashboard.shop-admin/.salesman), so its URL
+                         never equals $href once loaded — data-active-prefix lets the
+                         client-side active check in mobile-nav.js still recognise it. --}}
+                    <a href="{{ $href }}" wire:navigate
+                       data-href="{{ $href }}" data-exact="{{ $item['route'] === 'tenant.dashboard' ? '1' : '0' }}"
+                       @if ($item['route'] === 'tenant.dashboard') data-active-prefix="{{ $href }}/dashboard/" @endif
+                       class="flex flex-col shrink-0 items-center gap-0.5 rounded-lg px-3 py-1.5 text-[11px] font-medium text-gray-500">
+                        <x-tenant-icon :name="$item['icon']" class="h-5 w-5" />
+                        <span class="whitespace-nowrap">{{ $item['label'] }}</span>
+                    </a>
+                @endforeach
+            </div>
+            {{-- Edge fades hint that the bar scrolls further in each direction --}}
+            <div class="pointer-events-none absolute inset-y-0 left-0 w-6 bg-gradient-to-r from-white/90 to-transparent"></div>
+            <div class="pointer-events-none absolute inset-y-0 right-0 w-6 bg-gradient-to-l from-white/90 to-transparent"></div>
+        </div>
+    </nav>
+@endpersist
