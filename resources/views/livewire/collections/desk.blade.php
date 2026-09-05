@@ -275,7 +275,8 @@ new #[Layout('layouts.tenant')] class extends Component
                         </div>
                     </div>
 
-                    <form wire:submit="postPayment" class="grid grid-cols-1 sm:grid-cols-2 gap-4 border-t border-gray-100 dark:border-gray-700 pt-4">
+                    <form wire:submit="postPayment" class="grid grid-cols-1 sm:grid-cols-2 gap-4 border-t border-gray-100 dark:border-gray-700 pt-4"
+                          wire:loading.class="opacity-50 pointer-events-none" wire:target="postPayment">
                         <div>
                             <x-input-label for="amount" value="Amount Received" />
                             <x-text-input id="amount" type="number" step="0.01" wire:model="amount" class="mt-1 block w-full" />
@@ -301,8 +302,14 @@ new #[Layout('layouts.tenant')] class extends Component
                         </div>
 
                         <div class="sm:col-span-2 flex items-center gap-3">
-                            <button type="submit" class="rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-emerald-500">
-                                Post Payment
+                            <button type="submit" wire:loading.attr="disabled" wire:target="postPayment"
+                                class="inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed">
+                                <svg wire:loading wire:target="postPayment" class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                                </svg>
+                                <span wire:loading.remove wire:target="postPayment">Post Payment</span>
+                                <span wire:loading wire:target="postPayment">Posting…</span>
                             </button>
 
                             @if ($lastPaymentId)
