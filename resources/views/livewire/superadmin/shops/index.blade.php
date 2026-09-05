@@ -73,6 +73,7 @@ new #[Layout('layouts.super-admin')] class extends Component
                     <thead class="bg-gray-50 dark:bg-gray-900/80">
                         <tr>
                             <th class="px-4 py-3 text-left font-medium text-gray-500 dark:text-gray-400">Shop</th>
+                            <th class="px-4 py-3 text-left font-medium text-gray-500 dark:text-gray-400">URL Slug</th>
                             <th class="px-4 py-3 text-left font-medium text-gray-500 dark:text-gray-400">Owner</th>
                             <th class="px-4 py-3 text-right font-medium text-gray-500 dark:text-gray-400">Monthly Fee</th>
                             <th class="px-4 py-3 text-left font-medium text-gray-500 dark:text-gray-400">Status</th>
@@ -83,6 +84,9 @@ new #[Layout('layouts.super-admin')] class extends Component
                         @forelse ($shops as $shop)
                             <tr>
                                 <td class="px-4 py-3 font-medium text-gray-900 dark:text-white">{{ $shop->name }}</td>
+                                <td class="px-4 py-3">
+                                    <code class="rounded bg-gray-100 dark:bg-gray-900/60 px-1.5 py-0.5 text-xs text-gray-600 dark:text-gray-300">{{ $shop->slug }}</code>
+                                </td>
                                 <td class="px-4 py-3 text-gray-500 dark:text-gray-400">{{ $shop->owner?->name ?? '—' }}</td>
                                 <td class="px-4 py-3 text-right text-gray-700 dark:text-gray-300">Rs. {{ number_format((float) $shop->monthly_fee, 2) }}</td>
                                 <td class="px-4 py-3"><x-status-badge :status="$shop->subscription_status" /></td>
@@ -98,7 +102,7 @@ new #[Layout('layouts.super-admin')] class extends Component
                                 </td>
                             </tr>
                         @empty
-                            <tr><td colspan="5" class="px-4 py-8 text-center text-gray-400">No shops yet.</td></tr>
+                            <tr><td colspan="6" class="px-4 py-8 text-center text-gray-400">No shops yet.</td></tr>
                         @endforelse
                     </tbody>
                 </table>

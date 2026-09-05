@@ -4,6 +4,7 @@ use App\Models\Shop;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Livewire\Attributes\Validate;
 use Livewire\Attributes\Layout;
 use Livewire\Volt\Component;
@@ -14,6 +15,11 @@ new #[Layout('layouts.super-admin')] class extends Component
 
     #[Validate('required|string|max:255')]
     public string $name = '';
+
+    public string $slug = '';
+
+    /** Once true, typing in Shop Name stops overwriting the slug — set the moment the slug is edited by hand, or loaded from an existing shop. */
+    public bool $slugManuallyEdited = false;
 
     public string $phone = '';
 
@@ -58,6 +64,8 @@ new #[Layout('layouts.super-admin')] class extends Component
     {
         if ($shop?->exists) {
             $this->shop = $shop;
+            $this->slug = $shop->slug;
+            $this->slugManuallyEdited = true;
             // Nullable columns cast to '' before fill() — these are typed
             // `string` properties, and Livewire's direct property assignment
             // throws a TypeError on a null value. grace_period_days is int
@@ -74,9 +82,32 @@ new #[Layout('layouts.super-admin')] class extends Component
         }
     }
 
+    public function updatedName(): void
+    {
+        if (! $this->slugManuallyEdited) {
+            $this->slug = Str::slug($this->name);
+        }
+    }
+
+    public function updatedSlug(): void
+    {
+        $this->slugManuallyEdited = true;
+        $this->slug = Str::slug($this->slug);
+    }
+
     public function save(): void
     {
         $this->validate();
+
+        $this->validate([
+            'slug' => [
+                'required', 'string', 'max:255',
+                'regex:/^[a-z0-9]+(-[a-z0-9]+)*$/',
+                Rule::unique('shops', 'slug')->ignore($this->shop?->id),
+            ],
+        ], [
+            'slug.regex' => 'The URL slug may only contain lowercase letters, numbers, and hyphens.',
+        ]);
 
         if (! $this->shop) {
             $this->validate([
@@ -88,7 +119,7 @@ new #[Layout('layouts.super-admin')] class extends Component
 
         DB::transaction(function () {
             $data = collect($this->all())->only([
-                'name', 'phone', 'email', 'address', 'city', 'subscription_status', 'billing_cycle',
+                'name', 'slug', 'phone', 'email', 'address', 'city', 'subscription_status', 'billing_cycle',
                 'monthly_fee', 'default_interest_rate', 'default_processing_fee',
                 'penalty_type', 'penalty_rate', 'grace_period_days',
             ])->toArray();
@@ -96,7 +127,6 @@ new #[Layout('layouts.super-admin')] class extends Component
             if ($this->shop) {
                 $this->shop->update($data);
             } else {
-                $data['slug'] = Str::slug($this->name).'-'.Str::lower(Str::random(6));
                 $data['trial_ends_at'] = $this->subscription_status === 'trial' ? now()->addDays(14) : null;
 
                 $this->shop = Shop::create($data);
@@ -137,8 +167,14 @@ new #[Layout('layouts.super-admin')] class extends Component
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div class="sm:col-span-2">
                     <label class="text-sm font-medium text-gray-700 dark:text-gray-300">Shop Name</label>
-                    <input wire:model="name" class="mt-1 block w-full rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-white shadow-sm focus:border-walnut-400 focus:ring-walnut-400">
+                    <input wire:model.live.debounce.300ms="name" class="mt-1 block w-full rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-white shadow-sm focus:border-walnut-400 focus:ring-walnut-400">
                     <x-input-error :messages="$errors->get('name')" class="mt-1" />
+                </div>
+                <div class="sm:col-span-2">
+                    <label class="text-sm font-medium text-gray-700 dark:text-gray-300">URL Slug</label>
+                    <input wire:model.live.debounce.300ms="slug" class="mt-1 block w-full rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-white shadow-sm focus:border-walnut-400 focus:ring-walnut-400 font-mono text-sm">
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Login URL: {{ url('/'.($slug ?: '{slug}').'/login') }}</p>
+                    <x-input-error :messages="$errors->get('slug')" class="mt-1" />
                 </div>
                 <div>
                     <label class="text-sm font-medium text-gray-700 dark:text-gray-300">Phone</label>
