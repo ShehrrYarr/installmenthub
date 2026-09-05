@@ -70,7 +70,7 @@ new #[Layout('layouts.tenant')] class extends Component
                                 <td class="px-4 py-3 font-medium text-gray-900 dark:text-white">{{ $order->po_number }}</td>
                                 <td class="px-4 py-3 text-gray-600 dark:text-gray-300">{{ $order->vendor->name }}</td>
                                 <td class="px-4 py-3 text-gray-500">{{ $order->order_date->format('d M Y') }}</td>
-                                <td class="px-4 py-3 text-right text-gray-900 dark:text-white">Rs. {{ number_format((float) $order->total_amount, 2) }}</td>
+                                <td class="px-4 py-3 text-right text-gray-900 dark:text-white">Rs. {{ number_format((float) $order->total_amount, 0) }}</td>
                                 <td class="px-4 py-3"><x-status-badge :status="$order->status" /></td>
                                 <td class="px-4 py-3 text-right">
                                     <a href="{{ \Illuminate\Support\Facades\Route::has('tenant.purchase-orders.receive') ? route('tenant.purchase-orders.receive', $order) : '#' }}" wire:navigate

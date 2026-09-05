@@ -49,15 +49,15 @@ new #[Layout('layouts.tenant')] class extends Component
     <div class="mb-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div class="rounded-2xl border border-white/40 dark:border-gray-700/60 bg-white/70 dark:bg-gray-800/60 backdrop-blur-xl shadow-lg shadow-gray-900/5 px-4 py-3">
             <p class="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Total Amount</p>
-            <p class="mt-1 text-lg font-semibold text-gray-900 dark:text-white">Rs. {{ number_format((float) $summary['totalAmount'], 2) }}</p>
+            <p class="mt-1 text-lg font-semibold text-gray-900 dark:text-white">Rs. {{ number_format((float) $summary['totalAmount'], 0) }}</p>
         </div>
         <div class="rounded-2xl border border-white/40 dark:border-gray-700/60 bg-white/70 dark:bg-gray-800/60 backdrop-blur-xl shadow-lg shadow-gray-900/5 px-4 py-3">
             <p class="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Total Receivable</p>
-            <p class="mt-1 text-lg font-semibold text-gray-900 dark:text-white">Rs. {{ number_format((float) $summary['totalReceivable'], 2) }}</p>
+            <p class="mt-1 text-lg font-semibold text-gray-900 dark:text-white">Rs. {{ number_format((float) $summary['totalReceivable'], 0) }}</p>
         </div>
         <div class="rounded-2xl border border-white/40 dark:border-gray-700/60 bg-white/70 dark:bg-gray-800/60 backdrop-blur-xl shadow-lg shadow-gray-900/5 px-4 py-3">
             <p class="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Overdue</p>
-            <p class="mt-1 text-lg font-semibold text-rose-600 dark:text-rose-400">Rs. {{ number_format((float) $summary['totalOverdue'], 2) }}</p>
+            <p class="mt-1 text-lg font-semibold text-rose-600 dark:text-rose-400">Rs. {{ number_format((float) $summary['totalOverdue'], 0) }}</p>
         </div>
     </div>
 
@@ -83,7 +83,7 @@ new #[Layout('layouts.tenant')] class extends Component
 
     @if ($customerCount > 0)
         <p class="mb-4 text-sm text-gray-500 dark:text-gray-400">
-            {{ $customerCount }} {{ Str::plural('customer', $customerCount) }} due in {{ $monthLabel }} · Rs. {{ number_format((float) $grandTotal, 2) }} total
+            {{ $customerCount }} {{ Str::plural('customer', $customerCount) }} due in {{ $monthLabel }} · Rs. {{ number_format((float) $grandTotal, 0) }} total
         </p>
     @endif
 
@@ -92,7 +92,7 @@ new #[Layout('layouts.tenant')] class extends Component
             <section>
                 <h2 class="mb-3 flex items-baseline justify-between border-b border-gray-200 dark:border-gray-700 pb-2">
                     <span class="text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{{ $group['area'] }}</span>
-                    <span class="text-sm font-medium text-gray-500 dark:text-gray-400">Rs. {{ number_format((float) $group['areaTotal'], 2) }}</span>
+                    <span class="text-sm font-medium text-gray-500 dark:text-gray-400">Rs. {{ number_format((float) $group['areaTotal'], 0) }}</span>
                 </h2>
 
                 <div class="space-y-4">
@@ -105,7 +105,7 @@ new #[Layout('layouts.tenant')] class extends Component
                                 </div>
                                 <div class="text-right">
                                     <p class="text-xs text-gray-500 dark:text-gray-400">Total due</p>
-                                    <p class="font-semibold text-gray-900 dark:text-white">Rs. {{ number_format((float) $row['grandTotal'], 2) }}</p>
+                                    <p class="font-semibold text-gray-900 dark:text-white">Rs. {{ number_format((float) $row['grandTotal'], 0) }}</p>
                                 </div>
                             </div>
 
@@ -127,17 +127,17 @@ new #[Layout('layouts.tenant')] class extends Component
                                                 <td class="px-4 py-2 text-gray-700 dark:text-gray-200">{{ $agreementRow['agreement']->agreement_number }}</td>
                                                 <td class="px-4 py-2 text-gray-500 dark:text-gray-400">{{ $agreementRow['units'] ?: '—' }}</td>
                                                 <td class="px-4 py-2 text-right text-gray-700 dark:text-gray-200">
-                                                    {{ bccomp($agreementRow['thisMonth'], '0', 2) > 0 ? 'Rs. '.number_format((float) $agreementRow['thisMonth'], 2) : '—' }}
+                                                    {{ bccomp($agreementRow['thisMonth'], '0', 2) > 0 ? 'Rs. '.number_format((float) $agreementRow['thisMonth'], 0) : '—' }}
                                                 </td>
                                                 <td class="px-4 py-2 text-right">
                                                     @if (bccomp($agreementRow['overdue'], '0', 2) > 0)
-                                                        <span class="font-medium text-rose-600 dark:text-rose-400">Rs. {{ number_format((float) $agreementRow['overdue'], 2) }}</span>
+                                                        <span class="font-medium text-rose-600 dark:text-rose-400">Rs. {{ number_format((float) $agreementRow['overdue'], 0) }}</span>
                                                     @else
                                                         <span class="text-gray-400">—</span>
                                                     @endif
                                                 </td>
                                                 <td class="px-4 py-2 text-right font-medium text-gray-900 dark:text-white">
-                                                    Rs. {{ number_format((float) $agreementRow['total'], 2) }}
+                                                    Rs. {{ number_format((float) $agreementRow['total'], 0) }}
                                                 </td>
                                                 <td class="px-4 py-2 text-right">
                                                     <a href="{{ route('tenant.collections.desk', ['agreement' => $agreementRow['agreement']->id, 'prefillAmount' => $agreementRow['total']]) }}"

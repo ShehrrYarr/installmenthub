@@ -92,7 +92,7 @@ new #[Layout('layouts.tenant')] class extends Component
                     <dl class="grid grid-cols-2 gap-2 text-sm">
                         <div class="rounded-lg bg-gray-50 dark:bg-gray-900/40 p-2">
                             <dt class="text-xs text-gray-400">Cash Price</dt>
-                            <dd class="font-medium text-gray-900 dark:text-white">Rs. {{ number_format((float) $product->cash_price, 2) }}</dd>
+                            <dd class="font-medium text-gray-900 dark:text-white">Rs. {{ number_format((float) $product->cash_price, 0) }}</dd>
                         </div>
                         <div class="rounded-lg bg-gray-50 dark:bg-gray-900/40 p-2">
                             <dt class="text-xs text-gray-400">In Stock</dt>

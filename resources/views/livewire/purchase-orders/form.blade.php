@@ -67,8 +67,8 @@ new #[Layout('layouts.tenant')] class extends Component
     {
         $item = $this->items[$index];
 
-        return bccomp((string) ($item['cost_price'] ?: '0'), '0.01', 2) >= 0
-            && bccomp((string) ($item['selling_cash_price'] ?: '0'), '0.01', 2) >= 0;
+        return bccomp((string) ($item['cost_price'] ?: '0'), '1', 2) >= 0
+            && bccomp((string) ($item['selling_cash_price'] ?: '0'), '1', 2) >= 0;
     }
 
     /** @return array<string, string> */
@@ -78,8 +78,8 @@ new #[Layout('layouts.tenant')] class extends Component
             'items' => 'required|array|min:1',
             'items.*.product_id' => 'required|exists:products,id',
             'items.*.quantity' => 'required|integer|min:1',
-            'items.*.cost_price' => 'required|numeric|min:0.01',
-            'items.*.selling_cash_price' => 'required|numeric|min:0.01',
+            'items.*.cost_price' => 'required|integer|min:1',
+            'items.*.selling_cash_price' => 'required|integer|min:1',
         ];
     }
 
@@ -265,7 +265,7 @@ new #[Layout('layouts.tenant')] class extends Component
                         </div>
                         <div class="sm:col-span-2">
                             <x-input-label value="Cost Price" />
-                            <x-text-input type="number" step="0.01"
+                            <x-text-input type="number" step="1"
                                 wire:model="items.{{ $index }}.cost_price"
                                 wire:blur="validateItemPrices({{ $index }})"
                                 class="mt-1 block w-full {{ $errors->has('items.'.$index.'.cost_price') ? 'border-rose-500 focus:border-rose-500 focus:ring-rose-500' : '' }}" />
@@ -273,7 +273,7 @@ new #[Layout('layouts.tenant')] class extends Component
                         </div>
                         <div class="sm:col-span-3">
                             <x-input-label value="Selling Cash Price" />
-                            <x-text-input type="number" step="0.01"
+                            <x-text-input type="number" step="1"
                                 wire:model="items.{{ $index }}.selling_cash_price"
                                 wire:blur="validateItemPrices({{ $index }})"
                                 class="mt-1 block w-full {{ $errors->has('items.'.$index.'.selling_cash_price') ? 'border-rose-500 focus:border-rose-500 focus:ring-rose-500' : '' }}" />
@@ -292,7 +292,7 @@ new #[Layout('layouts.tenant')] class extends Component
             </div>
 
             <div class="flex justify-end border-t border-gray-100 dark:border-gray-700 pt-4">
-                <p class="text-sm text-gray-500">Total: <span class="text-lg font-semibold text-gray-900 dark:text-white">Rs. {{ number_format((float) $this->total, 2) }}</span></p>
+                <p class="text-sm text-gray-500">Total: <span class="text-lg font-semibold text-gray-900 dark:text-white">Rs. {{ number_format((float) $this->total, 0) }}</span></p>
             </div>
         </div>
 

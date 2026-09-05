@@ -35,19 +35,19 @@ new #[Layout('layouts.super-admin')] class extends Component
     #[Validate('required|in:monthly,yearly')]
     public string $billing_cycle = 'monthly';
 
-    #[Validate('required|numeric|min:0')]
+    #[Validate('required|integer|min:0')]
     public string $monthly_fee = '0';
 
     #[Validate('required|numeric|min:0')]
     public string $default_interest_rate = '12';
 
-    #[Validate('required|numeric|min:0')]
+    #[Validate('required|integer|min:0')]
     public string $default_processing_fee = '0';
 
     #[Validate('required|in:daily,fixed')]
     public string $penalty_type = 'daily';
 
-    #[Validate('required|numeric|min:0')]
+    #[Validate('required|integer|min:0')]
     public string $penalty_rate = '0';
 
     #[Validate('required|integer|min:0')]
@@ -238,7 +238,7 @@ new #[Layout('layouts.super-admin')] class extends Component
                 </div>
                 <div>
                     <label class="text-sm font-medium text-gray-700 dark:text-gray-300">Monthly Fee</label>
-                    <input type="number" step="0.01" wire:model="monthly_fee" class="mt-1 block w-full rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-white shadow-sm">
+                    <input type="number" step="1" wire:model="monthly_fee" class="mt-1 block w-full rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-white shadow-sm">
                 </div>
             </div>
         </div>
@@ -252,7 +252,7 @@ new #[Layout('layouts.super-admin')] class extends Component
                 </div>
                 <div>
                     <label class="text-sm font-medium text-gray-700 dark:text-gray-300">Default Processing Fee</label>
-                    <input type="number" step="0.01" wire:model="default_processing_fee" class="mt-1 block w-full rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-white shadow-sm">
+                    <input type="number" step="1" wire:model="default_processing_fee" class="mt-1 block w-full rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-white shadow-sm">
                 </div>
                 <div>
                     <label class="text-sm font-medium text-gray-700 dark:text-gray-300">Penalty Type</label>
@@ -263,7 +263,7 @@ new #[Layout('layouts.super-admin')] class extends Component
                 </div>
                 <div>
                     <label class="text-sm font-medium text-gray-700 dark:text-gray-300">Penalty Rate</label>
-                    <input type="number" step="0.01" wire:model="penalty_rate" class="mt-1 block w-full rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-white shadow-sm">
+                    <input type="number" step="1" wire:model="penalty_rate" class="mt-1 block w-full rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-white shadow-sm">
                 </div>
                 <div>
                     <label class="text-sm font-medium text-gray-700 dark:text-gray-300">Grace Period (days)</label>

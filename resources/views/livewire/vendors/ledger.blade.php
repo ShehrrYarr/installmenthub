@@ -45,8 +45,8 @@ new #[Layout('layouts.tenant')] class extends Component
     <div class="space-y-6">
         <div class="grid grid-cols-2 lg:grid-cols-3 gap-4">
             <x-stat-card label="Purchase Orders" :value="$this->summary['purchase_orders']" color="walnut" />
-            <x-stat-card label="Total Purchased" :value="'Rs. '.number_format((float) $this->summary['total_purchased'], 2)" color="sky" />
-            <x-stat-card label="Balance Owed" :value="'Rs. '.number_format((float) $this->summary['current_balance'], 2)" color="rose" hint="Positive = shop owes vendor" />
+            <x-stat-card label="Total Purchased" :value="'Rs. '.number_format((float) $this->summary['total_purchased'], 0)" color="sky" />
+            <x-stat-card label="Balance Owed" :value="'Rs. '.number_format((float) $this->summary['current_balance'], 0)" color="rose" hint="Positive = shop owes vendor" />
         </div>
 
         <div class="rounded-2xl border border-white/40 dark:border-gray-700/60 bg-white/70 dark:bg-gray-800/60 backdrop-blur-xl shadow-lg shadow-gray-900/5 overflow-hidden">
@@ -67,9 +67,9 @@ new #[Layout('layouts.tenant')] class extends Component
                             <tr>
                                 <td class="px-4 py-2.5 text-gray-500">{{ \Illuminate\Support\Carbon::parse($entry->entry_date)->format('d M Y') }}</td>
                                 <td class="px-4 py-2.5 text-gray-700 dark:text-gray-300">{{ $entry->description }}</td>
-                                <td class="px-4 py-2.5 text-right text-rose-600">{{ $entry->type === 'debit' ? number_format((float) $entry->amount, 2) : '' }}</td>
-                                <td class="px-4 py-2.5 text-right text-emerald-600">{{ $entry->type === 'credit' ? number_format((float) $entry->amount, 2) : '' }}</td>
-                                <td class="px-4 py-2.5 text-right font-medium text-gray-900 dark:text-white">{{ number_format((float) $entry->running_balance, 2) }}</td>
+                                <td class="px-4 py-2.5 text-right text-rose-600">{{ $entry->type === 'debit' ? number_format((float) $entry->amount, 0) : '' }}</td>
+                                <td class="px-4 py-2.5 text-right text-emerald-600">{{ $entry->type === 'credit' ? number_format((float) $entry->amount, 0) : '' }}</td>
+                                <td class="px-4 py-2.5 text-right font-medium text-gray-900 dark:text-white">{{ number_format((float) $entry->running_balance, 0) }}</td>
                             </tr>
                         @empty
                             <tr><td colspan="5" class="px-4 py-6 text-center text-gray-400">No ledger activity yet.</td></tr>

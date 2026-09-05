@@ -200,7 +200,7 @@ new #[Layout('layouts.tenant')] class extends Component
                 </div>
                 <div>
                     <x-input-label for="monthly_income" value="Verified Monthly Income" />
-                    <x-text-input id="monthly_income" type="number" step="0.01" wire:model="monthly_income" class="mt-1 block w-full" />
+                    <x-text-input id="monthly_income" type="number" step="1" wire:model="monthly_income" class="mt-1 block w-full" />
                 </div>
                 <div>
                     <x-input-label for="home_ownership" value="Home Ownership" />

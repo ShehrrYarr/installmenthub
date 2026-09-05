@@ -9,9 +9,9 @@
 
     $waText = "Receipt {$payment->receipt_number}\n"
         .($shop->name ?? config('app.name'))."\n"
-        ."Amount Received: Rs. ".number_format((float) $payment->amount, 2)."\n"
+        ."Amount Received: Rs. ".number_format((float) $payment->amount, 0)."\n"
         ."Agreement: {$agreement->agreement_number}\n"
-        ."Outstanding Balance: Rs. ".number_format((float) $outstanding, 2)."\n"
+        ."Outstanding Balance: Rs. ".number_format((float) $outstanding, 0)."\n"
         ."Paid on: {$payment->paid_at->format('d M Y, h:i A')}\n"
         ."Thank you for your payment.";
 @endphp
@@ -70,12 +70,12 @@
                 <div class="flex justify-between"><span>Reference</span><span>{{ $payment->reference_number }}</span></div>
             @endif
             <div class="flex justify-between text-sm font-bold pt-1">
-                <span>AMOUNT PAID</span><span>Rs. {{ number_format((float) $payment->amount, 2) }}</span>
+                <span>AMOUNT PAID</span><span>Rs. {{ number_format((float) $payment->amount, 0) }}</span>
             </div>
         </div>
 
         <div class="py-2 space-y-0.5">
-            <div class="flex justify-between"><span>Outstanding Balance</span><span>Rs. {{ number_format((float) $outstanding, 2) }}</span></div>
+            <div class="flex justify-between"><span>Outstanding Balance</span><span>Rs. {{ number_format((float) $outstanding, 0) }}</span></div>
             <div class="flex justify-between"><span>Next Due</span>
                 <span>
                     @php($next = $agreement->schedules()->whereIn('status', ['pending', 'partial', 'overdue'])->orderBy('installment_number')->first())

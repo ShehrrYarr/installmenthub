@@ -140,7 +140,7 @@ new #[Layout('layouts.tenant')] class extends Component
                 <div class="rounded-2xl border border-white/40 dark:border-gray-700/60 bg-white/70 dark:bg-gray-800/60 backdrop-blur-xl shadow-lg shadow-gray-900/5 p-5 space-y-3">
                     <div class="flex items-center justify-between">
                         <p class="font-semibold text-gray-900 dark:text-white">{{ $item->product->name }}</p>
-                        <p class="text-sm text-gray-500">Qty {{ $item->quantity }} · Rs. {{ number_format((float) $item->cost_price, 2) }} each</p>
+                        <p class="text-sm text-gray-500">Qty {{ $item->quantity }} · Rs. {{ number_format((float) $item->cost_price, 0) }} each</p>
                     </div>
 
                     @if ($item->product->is_serialized)

@@ -88,7 +88,7 @@ new #[Layout('layouts.super-admin')] class extends Component
                                     <code class="rounded bg-gray-100 dark:bg-gray-900/60 px-1.5 py-0.5 text-xs text-gray-600 dark:text-gray-300">{{ $shop->slug }}</code>
                                 </td>
                                 <td class="px-4 py-3 text-gray-500 dark:text-gray-400">{{ $shop->owner?->name ?? '—' }}</td>
-                                <td class="px-4 py-3 text-right text-gray-700 dark:text-gray-300">Rs. {{ number_format((float) $shop->monthly_fee, 2) }}</td>
+                                <td class="px-4 py-3 text-right text-gray-700 dark:text-gray-300">Rs. {{ number_format((float) $shop->monthly_fee, 0) }}</td>
                                 <td class="px-4 py-3"><x-status-badge :status="$shop->subscription_status" /></td>
                                 <td class="px-4 py-3 text-right space-x-3">
                                     <a href="{{ route('tenant.dashboard', $shop) }}" wire:navigate class="text-sky-600 dark:text-sky-400 hover:text-sky-800 dark:hover:text-sky-300 font-medium">Visit</a>

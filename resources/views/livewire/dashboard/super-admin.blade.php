@@ -60,7 +60,7 @@ new #[Layout('layouts.super-admin')] class extends Component
 
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div class="lg:col-span-1">
-            <x-stat-card label="Monthly Recurring Revenue" :value="'Rs. '.number_format($this->mrr, 2)" color="sky" hint="Sum of active shops' monthly fee" />
+            <x-stat-card label="Monthly Recurring Revenue" :value="'Rs. '.number_format($this->mrr, 0)" color="sky" hint="Sum of active shops' monthly fee" />
         </div>
 
         <div class="lg:col-span-2 rounded-2xl border border-white/40 dark:border-gray-700/60 bg-white/70 dark:bg-gray-800/60 backdrop-blur-xl shadow-lg shadow-gray-900/5 p-5">

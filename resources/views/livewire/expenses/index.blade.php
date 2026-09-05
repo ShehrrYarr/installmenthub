@@ -51,7 +51,7 @@ new #[Layout('layouts.tenant')] class extends Component
                     <option value="{{ $option }}">{{ $option }}</option>
                 @endforeach
             </select>
-            <p class="sm:ml-auto text-sm text-gray-500 dark:text-gray-400">Total: <span class="font-semibold text-gray-900 dark:text-white">Rs. {{ number_format((float) $total, 2) }}</span></p>
+            <p class="sm:ml-auto text-sm text-gray-500 dark:text-gray-400">Total: <span class="font-semibold text-gray-900 dark:text-white">Rs. {{ number_format((float) $total, 0) }}</span></p>
         </div>
 
         <div class="rounded-2xl border border-white/40 dark:border-gray-700/60 bg-white/70 dark:bg-gray-800/60 backdrop-blur-xl shadow-lg overflow-hidden">
@@ -76,7 +76,7 @@ new #[Layout('layouts.tenant')] class extends Component
                                 <td class="px-4 py-2.5 text-gray-500 dark:text-gray-400">{{ $expense->description ?: '—' }}</td>
                                 <td class="px-4 py-2.5 text-gray-500 dark:text-gray-400 capitalize">{{ $expense->payment_mode }}</td>
                                 <td class="px-4 py-2.5 text-gray-500 dark:text-gray-400">{{ $expense->creator?->name ?? '—' }}</td>
-                                <td class="px-4 py-2.5 text-right font-medium text-gray-900 dark:text-white">Rs. {{ number_format((float) $expense->amount, 2) }}</td>
+                                <td class="px-4 py-2.5 text-right font-medium text-gray-900 dark:text-white">Rs. {{ number_format((float) $expense->amount, 0) }}</td>
                                 <td class="px-4 py-2.5 text-right">
                                     @if (auth()->user()->hasRole('Shop Admin'))
                                         <a href="{{ route('tenant.expenses.edit', $expense) }}" wire:navigate class="text-walnut-400 hover:text-walnut-400 font-medium">Edit</a>

@@ -126,7 +126,7 @@ new #[Layout('layouts.tenant')] class extends Component
             ->reduce(fn ($carry, $schedule) => bcadd($carry, $schedule->balanceRemaining(), 2), '0.00');
 
         if (bccomp($this->amount, $outstanding, 2) > 0) {
-            $this->addError('amount', 'Amount exceeds the outstanding balance of Rs. '.number_format((float) $outstanding, 2).'.');
+            $this->addError('amount', 'Amount exceeds the outstanding balance of Rs. '.number_format((float) $outstanding, 0).'.');
 
             return;
         }
@@ -263,11 +263,11 @@ new #[Layout('layouts.tenant')] class extends Component
                     <div class="grid grid-cols-3 gap-3 text-center">
                         <div class="rounded-xl bg-gray-50 dark:bg-gray-900/50 p-3">
                             <p class="text-xs text-gray-400">Monthly Installment</p>
-                            <p class="font-semibold text-gray-900 dark:text-white">Rs. {{ number_format((float) $agreement->monthly_installment, 2) }}</p>
+                            <p class="font-semibold text-gray-900 dark:text-white">Rs. {{ number_format((float) $agreement->monthly_installment, 0) }}</p>
                         </div>
                         <div class="rounded-xl bg-gray-50 dark:bg-gray-900/50 p-3">
                             <p class="text-xs text-gray-400">Outstanding</p>
-                            <p class="font-semibold text-gray-900 dark:text-white">Rs. {{ number_format((float) $agreement->outstandingBalance(), 2) }}</p>
+                            <p class="font-semibold text-gray-900 dark:text-white">Rs. {{ number_format((float) $agreement->outstandingBalance(), 0) }}</p>
                         </div>
                         <div class="rounded-xl bg-gray-50 dark:bg-gray-900/50 p-3">
                             <p class="text-xs text-gray-400">Duration</p>
@@ -328,7 +328,7 @@ new #[Layout('layouts.tenant')] class extends Component
                             @foreach ($agreement->schedules as $schedule)
                                 <div class="flex items-center justify-between text-sm rounded-lg px-3 py-2 bg-gray-50 dark:bg-gray-900/40">
                                     <span class="text-gray-500">#{{ $schedule->installment_number }} · {{ $schedule->due_date->format('d M Y') }}</span>
-                                    <span class="text-gray-700 dark:text-gray-300">Rs. {{ number_format((float) $schedule->total_due, 2) }}</span>
+                                    <span class="text-gray-700 dark:text-gray-300">Rs. {{ number_format((float) $schedule->total_due, 0) }}</span>
                                     <x-status-badge :status="$schedule->status" />
                                 </div>
                             @endforeach

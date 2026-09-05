@@ -86,11 +86,11 @@ new #[Layout('layouts.tenant')] class extends Component
                     <dl class="grid grid-cols-2 gap-2 text-sm">
                         <div class="rounded-lg bg-gray-50 dark:bg-gray-900/40 p-2">
                             <dt class="text-xs text-gray-400">Monthly</dt>
-                            <dd class="font-medium text-gray-900 dark:text-white">Rs. {{ number_format((float) $agreement->monthly_installment, 2) }}</dd>
+                            <dd class="font-medium text-gray-900 dark:text-white">Rs. {{ number_format((float) $agreement->monthly_installment, 0) }}</dd>
                         </div>
                         <div class="rounded-lg bg-gray-50 dark:bg-gray-900/40 p-2">
                             <dt class="text-xs text-gray-400">Outstanding</dt>
-                            <dd class="font-medium text-gray-900 dark:text-white">Rs. {{ number_format((float) $agreement->outstandingBalance(), 2) }}</dd>
+                            <dd class="font-medium text-gray-900 dark:text-white">Rs. {{ number_format((float) $agreement->outstandingBalance(), 0) }}</dd>
                         </div>
                     </dl>
 

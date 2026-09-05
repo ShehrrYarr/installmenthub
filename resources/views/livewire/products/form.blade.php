@@ -27,10 +27,10 @@ new #[Layout('layouts.tenant')] class extends Component
 
     public string $description = '';
 
-    #[Validate('required|numeric|min:0')]
+    #[Validate('required|integer|min:0')]
     public string $cost_price = '0';
 
-    #[Validate('required|numeric|min:0')]
+    #[Validate('required|integer|min:0')]
     public string $cash_price = '0';
 
     public bool $is_serialized = true;
@@ -170,12 +170,12 @@ new #[Layout('layouts.tenant')] class extends Component
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                     <x-input-label for="cost_price" value="Cost Price" />
-                    <x-text-input id="cost_price" type="number" step="0.01" wire:model="cost_price" class="mt-1 block w-full" />
+                    <x-text-input id="cost_price" type="number" step="1" wire:model="cost_price" class="mt-1 block w-full" />
                     <x-input-error :messages="$errors->get('cost_price')" class="mt-1" />
                 </div>
                 <div>
                     <x-input-label for="cash_price" value="Selling Cash Price" />
-                    <x-text-input id="cash_price" type="number" step="0.01" wire:model="cash_price" class="mt-1 block w-full" />
+                    <x-text-input id="cash_price" type="number" step="1" wire:model="cash_price" class="mt-1 block w-full" />
                     <x-input-error :messages="$errors->get('cash_price')" class="mt-1" />
                 </div>
                 <div>

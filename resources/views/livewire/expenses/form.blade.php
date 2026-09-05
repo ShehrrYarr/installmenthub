@@ -12,7 +12,7 @@ new #[Layout('layouts.tenant')] class extends Component
     #[Validate('required|string|max:100')]
     public string $category = '';
 
-    #[Validate('required|numeric|min:0.01')]
+    #[Validate('required|integer|min:1')]
     public string $amount = '';
 
     #[Validate('required|date|before_or_equal:today')]
@@ -90,7 +90,7 @@ new #[Layout('layouts.tenant')] class extends Component
                 </div>
                 <div>
                     <x-input-label value="Amount" />
-                    <x-text-input type="number" step="0.01" wire:model="amount" class="mt-1 block w-full" />
+                    <x-text-input type="number" step="1" wire:model="amount" class="mt-1 block w-full" />
                     <x-input-error :messages="$errors->get('amount')" class="mt-1" />
                 </div>
                 <div>

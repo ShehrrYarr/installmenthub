@@ -23,7 +23,7 @@ new #[Layout('layouts.tenant')] class extends Component
     #[Validate('required|in:cash_in,cash_out')]
     public string $entryDirection = 'cash_in';
 
-    #[Validate('required|numeric|min:0.01')]
+    #[Validate('required|integer|min:1')]
     public string $entryAmount = '';
 
     #[Validate('required|in:cash,bank,easypaisa,jazzcash,other')]
@@ -202,11 +202,11 @@ new #[Layout('layouts.tenant')] class extends Component
     <div class="space-y-6">
         <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <x-stat-card label="Agreements" :value="$this->summary['total']" hint="{{ $this->summary['active'] }} active · {{ $this->summary['completed'] }} completed" color="walnut" />
-            <x-stat-card label="Down Payments" :value="'Rs. '.number_format((float) $this->summary['down_payments'], 2)" color="sky" />
-            <x-stat-card label="Interest Charged" :value="'Rs. '.number_format((float) $this->summary['interest_charged'], 2)" color="amber" />
-            <x-stat-card label="Collected" :value="'Rs. '.number_format((float) $this->summary['collected'], 2)" color="emerald" />
-            <x-stat-card label="Penalties Levied" :value="'Rs. '.number_format((float) $this->summary['penalties'], 2)" color="rose" />
-            <x-stat-card label="Net Outstanding" :value="'Rs. '.number_format((float) $this->summary['outstanding'], 2)" color="walnut" />
+            <x-stat-card label="Down Payments" :value="'Rs. '.number_format((float) $this->summary['down_payments'], 0)" color="sky" />
+            <x-stat-card label="Interest Charged" :value="'Rs. '.number_format((float) $this->summary['interest_charged'], 0)" color="amber" />
+            <x-stat-card label="Collected" :value="'Rs. '.number_format((float) $this->summary['collected'], 0)" color="emerald" />
+            <x-stat-card label="Penalties Levied" :value="'Rs. '.number_format((float) $this->summary['penalties'], 0)" color="rose" />
+            <x-stat-card label="Net Outstanding" :value="'Rs. '.number_format((float) $this->summary['outstanding'], 0)" color="walnut" />
         </div>
 
         <div class="rounded-2xl border border-white/40 dark:border-gray-700/60 bg-white/70 dark:bg-gray-800/60 backdrop-blur-xl shadow-lg shadow-gray-900/5 p-5">
@@ -216,7 +216,7 @@ new #[Layout('layouts.tenant')] class extends Component
                     <a href="{{ route('tenant.agreements.show', $agreement) }}" wire:navigate class="flex items-center justify-between rounded-xl bg-gray-50 dark:bg-gray-900/40 px-4 py-3 hover:bg-gray-100 dark:hover:bg-gray-900/70">
                         <div>
                             <p class="text-sm font-medium text-gray-900 dark:text-white">{{ $agreement->agreement_number }}</p>
-                            <p class="text-xs text-gray-500 dark:text-gray-400">Rs. {{ number_format((float) $agreement->monthly_installment, 2) }}/mo · {{ $agreement->duration_months }} mo</p>
+                            <p class="text-xs text-gray-500 dark:text-gray-400">Rs. {{ number_format((float) $agreement->monthly_installment, 0) }}/mo · {{ $agreement->duration_months }} mo</p>
                         </div>
                         <x-status-badge :status="$agreement->status" />
                     </a>
@@ -259,7 +259,7 @@ new #[Layout('layouts.tenant')] class extends Component
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                             <x-input-label value="Amount" />
-                            <x-text-input type="number" step="0.01" wire:model="entryAmount" class="mt-1 block w-full" />
+                            <x-text-input type="number" step="1" wire:model="entryAmount" class="mt-1 block w-full" />
                             <x-input-error :messages="$errors->get('entryAmount')" class="mt-1" />
                         </div>
                         <div>
@@ -336,9 +336,9 @@ new #[Layout('layouts.tenant')] class extends Component
                                         </button>
                                     @endif
                                 </td>
-                                <td class="px-4 py-2.5 text-right text-rose-600">{{ $entry->type === 'debit' ? number_format((float) $entry->amount, 2) : '' }}</td>
-                                <td class="px-4 py-2.5 text-right text-emerald-600">{{ $entry->type === 'credit' ? number_format((float) $entry->amount, 2) : '' }}</td>
-                                <td class="px-4 py-2.5 text-right font-medium text-gray-900 dark:text-white">{{ number_format((float) $entry->running_balance, 2) }}</td>
+                                <td class="px-4 py-2.5 text-right text-rose-600">{{ $entry->type === 'debit' ? number_format((float) $entry->amount, 0) : '' }}</td>
+                                <td class="px-4 py-2.5 text-right text-emerald-600">{{ $entry->type === 'credit' ? number_format((float) $entry->amount, 0) : '' }}</td>
+                                <td class="px-4 py-2.5 text-right font-medium text-gray-900 dark:text-white">{{ number_format((float) $entry->running_balance, 0) }}</td>
                                 <td class="px-4 py-2.5 text-right whitespace-nowrap">
                                     @if ($entry->isManual() && auth()->user()->hasRole('Shop Admin'))
                                         <button type="button" wire:click="startEdit({{ $entry->id }})" class="text-walnut-400 hover:text-walnut-400 font-medium text-xs">Edit</button>
@@ -356,7 +356,7 @@ new #[Layout('layouts.tenant')] class extends Component
                                                     <span>by {{ $revision->editor?->name ?? 'Unknown' }}</span>
                                                     <span class="ml-auto">
                                                         Previously: {{ $revision->type === 'debit' ? 'Cash Out' : 'Cash In' }} of
-                                                        Rs. {{ number_format((float) $revision->amount, 2) }}
+                                                        Rs. {{ number_format((float) $revision->amount, 0) }}
                                                         @if ($revision->payment_mode) ({{ ucfirst($revision->payment_mode) }}) @endif
                                                         on {{ $revision->entry_date->format('d M Y') }} — "{{ $revision->description }}"
                                                     </span>
@@ -366,7 +366,7 @@ new #[Layout('layouts.tenant')] class extends Component
                                                 <span class="text-gray-400">Now</span>
                                                 <span class="ml-auto">
                                                     Currently: {{ $entry->type === 'debit' ? 'Cash Out' : 'Cash In' }} of
-                                                    Rs. {{ number_format((float) $entry->amount, 2) }}
+                                                    Rs. {{ number_format((float) $entry->amount, 0) }}
                                                     @if ($entry->payment_mode) ({{ ucfirst($entry->payment_mode) }}) @endif
                                                     on {{ $entry->entry_date->format('d M Y') }} — "{{ $entry->description }}"
                                                 </span>

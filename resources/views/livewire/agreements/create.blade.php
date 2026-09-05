@@ -30,7 +30,7 @@ new #[Layout('layouts.tenant')] class extends Component
     #[Validate('required|exists:users,id')]
     public ?int $salesman_id = null;
 
-    #[Validate('required|numeric|min:1')]
+    #[Validate('required|integer|min:1')]
     public string $productPrice = '0';
 
     public string $downPaymentType = 'percent';
@@ -44,7 +44,7 @@ new #[Layout('layouts.tenant')] class extends Component
     #[Validate('required|numeric|min:0')]
     public string $interestRate = '12';
 
-    #[Validate('required|numeric|min:0')]
+    #[Validate('required|integer|min:0')]
     public string $processingFee = '0';
 
     #[Validate('required|integer|min:1|max:36')]
@@ -165,7 +165,7 @@ new #[Layout('layouts.tenant')] class extends Component
             ->map(fn ($product) => [
                 'id' => $product->id,
                 'label' => $product->name,
-                'sublabel' => 'Rs. '.number_format((float) $product->cash_price, 2).($product->sku ? " · {$product->sku}" : ''),
+                'sublabel' => 'Rs. '.number_format((float) $product->cash_price, 0).($product->sku ? " · {$product->sku}" : ''),
             ])
             ->all();
     }
@@ -461,7 +461,7 @@ new #[Layout('layouts.tenant')] class extends Component
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                         <x-input-label for="productPrice" value="Product Price" />
-                        <x-text-input id="productPrice" type="number" step="0.01" wire:model.live="productPrice" class="mt-1 block w-full" />
+                        <x-text-input id="productPrice" type="number" step="1" wire:model.live="productPrice" class="mt-1 block w-full" />
                         <x-input-error :messages="$errors->get('productPrice')" class="mt-1" />
                     </div>
                     <div>
@@ -474,7 +474,7 @@ new #[Layout('layouts.tenant')] class extends Component
                                 <option value="fixed">Rs.</option>
                             </select>
                         </div>
-                        <p class="mt-1 text-xs text-gray-400">≈ Rs. {{ number_format((float) $this->downPaymentAmount, 2) }}</p>
+                        <p class="mt-1 text-xs text-gray-400">≈ Rs. {{ number_format((float) $this->downPaymentAmount, 0) }}</p>
                         <x-input-error :messages="$errors->get('downPaymentValue')" class="mt-1" />
                     </div>
                     <div>
@@ -493,7 +493,7 @@ new #[Layout('layouts.tenant')] class extends Component
                     </div>
                     <div>
                         <x-input-label for="processingFee" value="Processing Fee" />
-                        <x-text-input id="processingFee" type="number" step="0.01" wire:model.live="processingFee" class="mt-1 block w-full" />
+                        <x-text-input id="processingFee" type="number" step="1" wire:model.live="processingFee" class="mt-1 block w-full" />
                     </div>
                     <div>
                         <x-input-label for="startDate" value="Start Date" />
@@ -513,13 +513,13 @@ new #[Layout('layouts.tenant')] class extends Component
             <div class="rounded-2xl border border-walnut-200/60 dark:border-walnut-900/60 bg-walnut-50/70 dark:bg-walnut-900/40 backdrop-blur-xl shadow-lg p-5 space-y-4">
                 <h3 class="font-semibold text-walnut-900 dark:text-walnut-200">Summary</h3>
                 <dl class="space-y-3 text-sm">
-                    <div class="flex justify-between"><dt class="text-walnut-600/70 dark:text-walnut-200/70">Financed</dt><dd class="font-medium text-walnut-900 dark:text-walnut-200">Rs. {{ number_format((float) $this->calculator->financedAmount(), 2) }}</dd></div>
-                    <div class="flex justify-between"><dt class="text-walnut-600/70 dark:text-walnut-200/70">Total Interest</dt><dd class="font-medium text-walnut-900 dark:text-walnut-200">Rs. {{ number_format((float) $this->calculator->totalInterest(), 2) }}</dd></div>
-                    <div class="flex justify-between border-t border-walnut-200 dark:border-walnut-900 pt-3"><dt class="text-walnut-600/70 dark:text-walnut-200/70">Total Payable</dt><dd class="font-semibold text-walnut-900 dark:text-walnut-200">Rs. {{ number_format((float) $this->calculator->totalPayable(), 2) }}</dd></div>
+                    <div class="flex justify-between"><dt class="text-walnut-600/70 dark:text-walnut-200/70">Financed</dt><dd class="font-medium text-walnut-900 dark:text-walnut-200">Rs. {{ number_format((float) $this->calculator->financedAmount(), 0) }}</dd></div>
+                    <div class="flex justify-between"><dt class="text-walnut-600/70 dark:text-walnut-200/70">Total Interest</dt><dd class="font-medium text-walnut-900 dark:text-walnut-200">Rs. {{ number_format((float) $this->calculator->totalInterest(), 0) }}</dd></div>
+                    <div class="flex justify-between border-t border-walnut-200 dark:border-walnut-900 pt-3"><dt class="text-walnut-600/70 dark:text-walnut-200/70">Total Payable</dt><dd class="font-semibold text-walnut-900 dark:text-walnut-200">Rs. {{ number_format((float) $this->calculator->totalPayable(), 0) }}</dd></div>
                 </dl>
                 <div class="rounded-xl bg-white/70 dark:bg-gray-900/50 p-4 text-center">
                     <p class="text-xs text-walnut-600/70 dark:text-walnut-200/70">Monthly Installment</p>
-                    <p class="text-3xl font-bold text-walnut-600 dark:text-walnut-200">Rs. {{ number_format((float) $this->calculator->monthlyInstallment(), 2) }}</p>
+                    <p class="text-3xl font-bold text-walnut-600 dark:text-walnut-200">Rs. {{ number_format((float) $this->calculator->monthlyInstallment(), 0) }}</p>
                 </div>
             </div>
         </div>

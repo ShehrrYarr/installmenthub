@@ -64,8 +64,8 @@ new #[Layout('layouts.tenant')] class extends Component
 
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <x-stat-card label="Active Agreements" :value="$this->activeAgreements" color="walnut" />
-        <x-stat-card label="Due Today" :value="'Rs. '.number_format($this->dueToday, 2)" color="amber" />
-        <x-stat-card label="Overdue" :value="'Rs. '.number_format($this->overdueAmount, 2)" color="rose" />
+        <x-stat-card label="Due Today" :value="'Rs. '.number_format($this->dueToday, 0)" color="amber" />
+        <x-stat-card label="Overdue" :value="'Rs. '.number_format($this->overdueAmount, 0)" color="rose" />
         <x-stat-card label="Low Stock Items" :value="$this->lowStockCount" color="sky" />
     </div>
 
@@ -96,7 +96,7 @@ new #[Layout('layouts.tenant')] class extends Component
                             <p class="text-sm font-medium text-gray-900 dark:text-white">{{ $schedule->agreement->agreement_number }}</p>
                             <p class="text-xs text-gray-500 dark:text-gray-400">{{ $schedule->agreement->customer->first_name }} · due {{ $schedule->due_date->format('d M') }}</p>
                         </div>
-                        <span class="text-sm font-semibold text-rose-600 dark:text-rose-400">Rs. {{ number_format((float) $schedule->balanceRemaining(), 2) }}</span>
+                        <span class="text-sm font-semibold text-rose-600 dark:text-rose-400">Rs. {{ number_format((float) $schedule->balanceRemaining(), 0) }}</span>
                     </div>
                 @empty
                     <p class="text-sm text-emerald-600 dark:text-emerald-400">Nothing overdue.</p>

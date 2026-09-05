@@ -62,7 +62,7 @@ new #[Layout('layouts.tenant')] class extends Component
     <div class="grid grid-cols-3 gap-3 mb-6">
         <x-stat-card label="My Active" :value="$this->myAgreementsCount" color="walnut" />
         <x-stat-card label="Due Today" :value="$this->dueTodayCount" color="amber" />
-        <x-stat-card label="Collected Today" :value="'Rs. '.number_format($this->collectedToday, 2)" color="emerald" />
+        <x-stat-card label="Collected Today" :value="'Rs. '.number_format($this->collectedToday, 0)" color="emerald" />
     </div>
 
     <a href="{{ \Illuminate\Support\Facades\Route::has('tenant.collections.desk') ? route('tenant.collections.desk') : '#' }}" wire:navigate
@@ -82,7 +82,7 @@ new #[Layout('layouts.tenant')] class extends Component
                         <p class="text-sm font-medium text-gray-900 dark:text-white">{{ $payment->customer->first_name }} {{ $payment->customer->last_name }}</p>
                         <p class="text-xs text-gray-500 dark:text-gray-400">{{ $payment->receipt_number }} · {{ $payment->paid_at->format('d M, h:i A') }}</p>
                     </div>
-                    <span class="text-sm font-semibold text-emerald-600 dark:text-emerald-400">Rs. {{ number_format((float) $payment->amount, 2) }}</span>
+                    <span class="text-sm font-semibold text-emerald-600 dark:text-emerald-400">Rs. {{ number_format((float) $payment->amount, 0) }}</span>
                 </div>
             @empty
                 <p class="text-sm text-gray-400">No collections logged yet today.</p>

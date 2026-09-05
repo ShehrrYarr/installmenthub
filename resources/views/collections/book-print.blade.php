@@ -28,21 +28,21 @@
         <div class="text-center pb-3 border-b-2 border-black">
             <p class="text-lg font-bold uppercase">{{ $shop?->name ?? config('app.name') }}</p>
             <p class="text-sm font-semibold">Customers Collection Sheet — {{ $monthLabel }}{{ $isCurrentMonth ? '' : ' (historical snapshot)' }}</p>
-            <p class="text-xs text-gray-600">Generated {{ $generatedAt->format('d-M-Y, h:i A') }} · {{ $customerCount }} {{ Str::plural('customer', $customerCount) }} · Rs. {{ number_format((float) $grandTotal, 2) }} due this sheet</p>
+            <p class="text-xs text-gray-600">Generated {{ $generatedAt->format('d-M-Y, h:i A') }} · {{ $customerCount }} {{ Str::plural('customer', $customerCount) }} · Rs. {{ number_format((float) $grandTotal, 0) }} due this sheet</p>
         </div>
 
         <div class="mt-3 grid grid-cols-3 gap-2 text-center border-b border-black pb-3">
             <div>
                 <p class="text-[10px] uppercase text-gray-600">Total Amount</p>
-                <p class="font-semibold">Rs. {{ number_format((float) $summary['totalAmount'], 2) }}</p>
+                <p class="font-semibold">Rs. {{ number_format((float) $summary['totalAmount'], 0) }}</p>
             </div>
             <div>
                 <p class="text-[10px] uppercase text-gray-600">Total Receivable</p>
-                <p class="font-semibold">Rs. {{ number_format((float) $summary['totalReceivable'], 2) }}</p>
+                <p class="font-semibold">Rs. {{ number_format((float) $summary['totalReceivable'], 0) }}</p>
             </div>
             <div>
                 <p class="text-[10px] uppercase text-gray-600">Overdue</p>
-                <p class="font-semibold">Rs. {{ number_format((float) $summary['totalOverdue'], 2) }}</p>
+                <p class="font-semibold">Rs. {{ number_format((float) $summary['totalOverdue'], 0) }}</p>
             </div>
         </div>
 
@@ -50,7 +50,7 @@
             <div class="area-section mt-5">
                 <div class="flex items-baseline justify-between border-b border-black pb-1 mb-2">
                     <span class="font-bold uppercase">{{ $group['area'] }}</span>
-                    <span class="font-semibold">Rs. {{ number_format((float) $group['areaTotal'], 2) }}</span>
+                    <span class="font-semibold">Rs. {{ number_format((float) $group['areaTotal'], 0) }}</span>
                 </div>
 
                 @foreach ($group['customers'] as $row)
@@ -58,7 +58,7 @@
                         <div class="flex flex-wrap items-center justify-between gap-2 px-2 py-1 bg-gray-200 border-b border-black">
                             <span class="font-semibold">{{ $row['customer']->first_name }} {{ $row['customer']->last_name }}</span>
                             <span>{{ $row['customer']->phone }}{{ $row['customer']->cnic_number ? ' · '.$row['customer']->cnic_number : '' }}</span>
-                            <span class="font-semibold">Total: Rs. {{ number_format((float) $row['grandTotal'], 2) }}</span>
+                            <span class="font-semibold">Total: Rs. {{ number_format((float) $row['grandTotal'], 0) }}</span>
                         </div>
 
                         <table class="w-full border-collapse">
@@ -78,12 +78,12 @@
                                         <td class="px-2 py-1">{{ $agreementRow['agreement']->agreement_number }}</td>
                                         <td class="px-2 py-1">{{ $agreementRow['units'] ?: '—' }}</td>
                                         <td class="px-2 py-1 text-right">
-                                            {{ bccomp($agreementRow['thisMonth'], '0', 2) > 0 ? number_format((float) $agreementRow['thisMonth'], 2) : '—' }}
+                                            {{ bccomp($agreementRow['thisMonth'], '0', 2) > 0 ? number_format((float) $agreementRow['thisMonth'], 0) : '—' }}
                                         </td>
                                         <td class="px-2 py-1 text-right">
-                                            {{ bccomp($agreementRow['overdue'], '0', 2) > 0 ? number_format((float) $agreementRow['overdue'], 2) : '—' }}
+                                            {{ bccomp($agreementRow['overdue'], '0', 2) > 0 ? number_format((float) $agreementRow['overdue'], 0) : '—' }}
                                         </td>
-                                        <td class="px-2 py-1 text-right font-semibold">{{ number_format((float) $agreementRow['total'], 2) }}</td>
+                                        <td class="px-2 py-1 text-right font-semibold">{{ number_format((float) $agreementRow['total'], 0) }}</td>
                                         <td class="px-2 py-1 text-center">
                                             <span class="inline-block h-4 w-4 border border-black align-middle"></span>
                                         </td>

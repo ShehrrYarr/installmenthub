@@ -89,7 +89,7 @@ new #[Layout('layouts.tenant')] class extends Component
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                     <label class="text-sm font-medium text-gray-700 dark:text-gray-300">Product Price</label>
-                    <input type="number" step="0.01" min="0" wire:model.live.debounce.300ms="productPrice"
+                    <input type="number" step="1" min="0" wire:model.live.debounce.300ms="productPrice"
                         class="mt-1 block w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-900 shadow-sm focus:border-walnut-400 focus:ring-walnut-400">
                 </div>
 
@@ -103,7 +103,7 @@ new #[Layout('layouts.tenant')] class extends Component
                             <option value="fixed">Rs.</option>
                         </select>
                     </div>
-                    <p class="mt-1 text-xs text-gray-400">≈ Rs. {{ number_format((float) $this->downPaymentAmount, 2) }}</p>
+                    <p class="mt-1 text-xs text-gray-400">≈ Rs. {{ number_format((float) $this->downPaymentAmount, 0) }}</p>
                 </div>
 
                 <div>
@@ -114,7 +114,7 @@ new #[Layout('layouts.tenant')] class extends Component
 
                 <div>
                     <label class="text-sm font-medium text-gray-700 dark:text-gray-300">Processing Fee</label>
-                    <input type="number" step="0.01" min="0" wire:model.live.debounce.300ms="processingFee"
+                    <input type="number" step="1" min="0" wire:model.live.debounce.300ms="processingFee"
                         class="mt-1 block w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-900 shadow-sm focus:border-walnut-400 focus:ring-walnut-400">
                 </div>
             </div>
@@ -147,21 +147,21 @@ new #[Layout('layouts.tenant')] class extends Component
             <dl class="space-y-3 text-sm">
                 <div class="flex justify-between">
                     <dt class="text-walnut-600/70 dark:text-walnut-200/70">Financed Amount</dt>
-                    <dd class="font-medium text-walnut-900 dark:text-walnut-200">Rs. {{ number_format((float) $this->calculator->financedAmount(), 2) }}</dd>
+                    <dd class="font-medium text-walnut-900 dark:text-walnut-200">Rs. {{ number_format((float) $this->calculator->financedAmount(), 0) }}</dd>
                 </div>
                 <div class="flex justify-between">
                     <dt class="text-walnut-600/70 dark:text-walnut-200/70">Total Interest</dt>
-                    <dd class="font-medium text-walnut-900 dark:text-walnut-200">Rs. {{ number_format((float) $this->calculator->totalInterest(), 2) }}</dd>
+                    <dd class="font-medium text-walnut-900 dark:text-walnut-200">Rs. {{ number_format((float) $this->calculator->totalInterest(), 0) }}</dd>
                 </div>
                 <div class="flex justify-between border-t border-walnut-200 dark:border-walnut-900 pt-3">
                     <dt class="text-walnut-600/70 dark:text-walnut-200/70">Total Payable</dt>
-                    <dd class="font-semibold text-walnut-900 dark:text-walnut-200">Rs. {{ number_format((float) $this->calculator->totalPayable(), 2) }}</dd>
+                    <dd class="font-semibold text-walnut-900 dark:text-walnut-200">Rs. {{ number_format((float) $this->calculator->totalPayable(), 0) }}</dd>
                 </div>
             </dl>
 
             <div class="rounded-xl bg-white/70 dark:bg-gray-900/50 p-4 text-center">
                 <p class="text-xs text-walnut-600/70 dark:text-walnut-200/70">Monthly Installment</p>
-                <p class="text-3xl font-bold text-walnut-600 dark:text-walnut-200">Rs. {{ number_format((float) $this->calculator->monthlyInstallment(), 2) }}</p>
+                <p class="text-3xl font-bold text-walnut-600 dark:text-walnut-200">Rs. {{ number_format((float) $this->calculator->monthlyInstallment(), 0) }}</p>
                 <p class="text-xs text-walnut-400/70">for {{ $durationMonths }} months</p>
             </div>
 
@@ -191,11 +191,11 @@ new #[Layout('layouts.tenant')] class extends Component
                         <tr>
                             <td class="px-4 py-2.5 text-gray-500">{{ $row['installment_number'] }}</td>
                             <td class="px-4 py-2.5 text-gray-700 dark:text-gray-300">{{ \Illuminate\Support\Carbon::parse($row['due_date'])->format('d M Y') }}</td>
-                            <td class="px-4 py-2.5 text-right text-gray-500">{{ number_format((float) $row['opening_balance'], 2) }}</td>
-                            <td class="px-4 py-2.5 text-right text-gray-700 dark:text-gray-300">{{ number_format((float) $row['principal_component'], 2) }}</td>
-                            <td class="px-4 py-2.5 text-right text-gray-700 dark:text-gray-300">{{ number_format((float) $row['interest_component'], 2) }}</td>
-                            <td class="px-4 py-2.5 text-right font-medium text-gray-900 dark:text-white">{{ number_format((float) $row['total_due'], 2) }}</td>
-                            <td class="px-4 py-2.5 text-right text-gray-500">{{ number_format((float) $row['closing_balance'], 2) }}</td>
+                            <td class="px-4 py-2.5 text-right text-gray-500">{{ number_format((float) $row['opening_balance'], 0) }}</td>
+                            <td class="px-4 py-2.5 text-right text-gray-700 dark:text-gray-300">{{ number_format((float) $row['principal_component'], 0) }}</td>
+                            <td class="px-4 py-2.5 text-right text-gray-700 dark:text-gray-300">{{ number_format((float) $row['interest_component'], 0) }}</td>
+                            <td class="px-4 py-2.5 text-right font-medium text-gray-900 dark:text-white">{{ number_format((float) $row['total_due'], 0) }}</td>
+                            <td class="px-4 py-2.5 text-right text-gray-500">{{ number_format((float) $row['closing_balance'], 0) }}</td>
                         </tr>
                     @empty
                         <tr><td colspan="7" class="px-4 py-6 text-center text-gray-400">Enter a product price to see the schedule.</td></tr>
