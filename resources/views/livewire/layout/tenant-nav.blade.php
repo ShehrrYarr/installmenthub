@@ -23,6 +23,7 @@
         ['route' => 'tenant.products.index', 'label' => 'Products', 'icon' => 'cube', 'roles' => null, 'permission' => 'manage-products', 'group' => 'Inventory'],
         ['route' => 'tenant.vendors.index', 'label' => 'Vendors', 'icon' => 'truck', 'roles' => null, 'permission' => 'manage-vendors', 'group' => 'Inventory'],
         ['route' => 'tenant.purchase-orders.index', 'label' => 'Purchase Orders', 'icon' => 'document-text', 'roles' => null, 'permission' => 'manage-purchase-orders', 'group' => 'Inventory'],
+        ['route' => 'tenant.expenses.index', 'label' => 'Expenses', 'icon' => 'chart-bar', 'roles' => null, 'permission' => 'manage-expenses', 'group' => 'Finance'],
         ['route' => 'tenant.settings.appearance', 'label' => 'Settings', 'icon' => 'cog', 'roles' => ['Shop Admin', 'Super Admin'], 'permission' => null, 'group' => 'Admin'],
     ])->filter(fn ($item) => (is_null($item['roles']) || $user->hasAnyRole($item['roles']))
         && (is_null($item['permission']) || $user->can($item['permission'])));

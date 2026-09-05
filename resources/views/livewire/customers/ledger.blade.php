@@ -2,6 +2,7 @@
 
 use App\Models\Customer;
 use App\Models\CustomerLedgerEntry;
+use App\Models\CustomerLedgerEntryRevision;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Validate;
@@ -12,6 +13,12 @@ new #[Layout('layouts.tenant')] class extends Component
     public Customer $customer;
 
     public bool $showEntryForm = false;
+
+    /** Set while editing an existing manual entry; null while adding a new one. */
+    public ?int $editingEntryId = null;
+
+    /** Entry currently expanded to show its edit history, if any. */
+    public ?int $expandedEntryId = null;
 
     #[Validate('required|in:cash_in,cash_out')]
     public string $entryDirection = 'cash_in';
@@ -38,10 +45,36 @@ new #[Layout('layouts.tenant')] class extends Component
         abort_unless(auth()->user()->hasRole('Shop Admin'), 403);
 
         $this->showEntryForm = ! $this->showEntryForm;
+        $this->editingEntryId = null;
+        $this->resetEntryFields();
         $this->resetErrorBag();
     }
 
-    public function addEntry(): void
+    public function startEdit(int $entryId): void
+    {
+        abort_unless(auth()->user()->hasRole('Shop Admin'), 403);
+
+        $entry = CustomerLedgerEntry::where('customer_id', $this->customer->id)->findOrFail($entryId);
+
+        abort_unless($entry->isManual(), 403);
+
+        $this->editingEntryId = $entry->id;
+        $this->entryDirection = $entry->type === 'credit' ? 'cash_in' : 'cash_out';
+        $this->entryAmount = (string) $entry->amount;
+        $this->entryDate = $entry->entry_date->toDateString();
+        $this->entryDescription = (string) $entry->description;
+        $this->entryAgreementId = $entry->agreement_id;
+        $this->showEntryForm = true;
+        $this->expandedEntryId = null;
+        $this->resetErrorBag();
+    }
+
+    public function toggleHistory(int $entryId): void
+    {
+        $this->expandedEntryId = $this->expandedEntryId === $entryId ? null : $entryId;
+    }
+
+    public function saveEntry(): void
     {
         abort_unless(auth()->user()->hasRole('Shop Admin'), 403);
 
@@ -53,31 +86,87 @@ new #[Layout('layouts.tenant')] class extends Component
             return;
         }
 
-        $lastBalance = CustomerLedgerEntry::where('customer_id', $this->customer->id)->latest('id')->value('running_balance') ?? '0.00';
         $type = $this->entryDirection === 'cash_in' ? 'credit' : 'debit';
-        $runningBalance = $type === 'debit'
-            ? bcadd($lastBalance, $this->entryAmount, 2)
-            : bcsub($lastBalance, $this->entryAmount, 2);
 
-        CustomerLedgerEntry::create([
-            'customer_id' => $this->customer->id,
-            'agreement_id' => $this->entryAgreementId,
-            'type' => $type,
-            'amount' => $this->entryAmount,
-            'running_balance' => $runningBalance,
-            'reference_type' => null,
-            'reference_id' => null,
-            'description' => $this->entryDescription,
-            'entry_date' => $this->entryDate,
-            'created_by' => auth()->id(),
-        ]);
+        if ($this->editingEntryId) {
+            $entry = CustomerLedgerEntry::where('customer_id', $this->customer->id)->findOrFail($this->editingEntryId);
+            abort_unless($entry->isManual(), 403);
 
+            CustomerLedgerEntryRevision::create([
+                'customer_ledger_entry_id' => $entry->id,
+                'type' => $entry->type,
+                'amount' => $entry->amount,
+                'agreement_id' => $entry->agreement_id,
+                'description' => $entry->description,
+                'entry_date' => $entry->entry_date,
+                'edited_by' => auth()->id(),
+            ]);
+
+            $entry->update([
+                'agreement_id' => $this->entryAgreementId,
+                'type' => $type,
+                'amount' => $this->entryAmount,
+                'description' => $this->entryDescription,
+                'entry_date' => $this->entryDate,
+            ]);
+
+            session()->flash('status', 'Ledger entry updated.');
+        } else {
+            CustomerLedgerEntry::create([
+                'customer_id' => $this->customer->id,
+                'agreement_id' => $this->entryAgreementId,
+                'type' => $type,
+                'amount' => $this->entryAmount,
+                'running_balance' => '0.00',
+                'reference_type' => null,
+                'reference_id' => null,
+                'description' => $this->entryDescription,
+                'entry_date' => $this->entryDate,
+                'created_by' => auth()->id(),
+            ]);
+
+            session()->flash('status', 'Ledger entry added.');
+        }
+
+        $this->recalculateRunningBalances();
+
+        unset($this->entries);
+        $this->editingEntryId = null;
+        $this->resetEntryFields();
+        $this->showEntryForm = false;
+    }
+
+    private function resetEntryFields(): void
+    {
         $this->reset(['entryAmount', 'entryDescription', 'entryAgreementId']);
         $this->entryDirection = 'cash_in';
         $this->entryDate = now()->toDateString();
-        $this->showEntryForm = false;
+    }
 
-        session()->flash('status', 'Ledger entry added.');
+    /**
+     * Recomputes running_balance for every one of this customer's ledger
+     * entries in true chronological order (entry_date, then id as a
+     * tie-breaker) — the only way to stay correct once a manual entry can be
+     * added or edited with a backdated date, rather than always landing at
+     * the end of the sequence like automatic entries do.
+     */
+    private function recalculateRunningBalances(): void
+    {
+        $running = '0.00';
+
+        CustomerLedgerEntry::where('customer_id', $this->customer->id)
+            ->orderBy('entry_date')
+            ->orderBy('id')
+            ->get()
+            ->each(function (CustomerLedgerEntry $entry) use (&$running) {
+                $running = $entry->type === 'debit'
+                    ? bcadd($running, (string) $entry->amount, 2)
+                    : bcsub($running, (string) $entry->amount, 2);
+
+                if (bccomp($running, (string) $entry->running_balance, 2) !== 0) {
+                    $entry->update(['running_balance' => $running]);
+                }
+            });
     }
 
     #[Computed]
@@ -89,7 +178,11 @@ new #[Layout('layouts.tenant')] class extends Component
     #[Computed]
     public function entries()
     {
-        return $this->customer->ledgerEntries()->orderBy('entry_date')->orderBy('id')->get();
+        return $this->customer->ledgerEntries()
+            ->with(['revisions.editor'])
+            ->orderBy('entry_date')
+            ->orderBy('id')
+            ->get();
     }
 
     #[Computed]
@@ -168,7 +261,8 @@ new #[Layout('layouts.tenant')] class extends Component
             </div>
 
             @if ($showEntryForm)
-                <form wire:submit="addEntry" class="mx-5 mt-4 rounded-xl bg-gray-50 dark:bg-gray-900/40 p-4 space-y-4">
+                <form wire:submit="saveEntry" class="mx-5 mt-4 rounded-xl bg-gray-50 dark:bg-gray-900/40 p-4 space-y-4">
+                    <p class="text-sm font-medium text-gray-600 dark:text-gray-300">{{ $editingEntryId ? 'Edit Entry' : 'New Entry' }}</p>
                     <div class="flex gap-2">
                         <button type="button" wire:click="$set('entryDirection', 'cash_in')"
                             class="flex-1 rounded-lg px-4 py-2 text-sm font-medium border {{ $entryDirection === 'cash_in' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-300 dark:border-gray-600' }}">
@@ -210,7 +304,10 @@ new #[Layout('layouts.tenant')] class extends Component
 
                     <div class="flex items-center gap-3">
                         <button type="submit" class="rounded-lg bg-walnut-600 px-5 py-2 text-sm font-medium text-white hover:bg-walnut-400">
-                            Save Entry
+                            {{ $editingEntryId ? 'Update Entry' : 'Save Entry' }}
+                        </button>
+                        <button type="button" wire:click="toggleEntryForm" class="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700">
+                            Cancel
                         </button>
                     </div>
                 </form>
@@ -225,6 +322,7 @@ new #[Layout('layouts.tenant')] class extends Component
                             <th class="px-4 py-3 text-right font-medium text-gray-500">Debit</th>
                             <th class="px-4 py-3 text-right font-medium text-gray-500">Credit</th>
                             <th class="px-4 py-3 text-right font-medium text-gray-500">Balance</th>
+                            <th class="px-4 py-3"></th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
@@ -233,16 +331,54 @@ new #[Layout('layouts.tenant')] class extends Component
                                 <td class="px-4 py-2.5 text-gray-500">{{ \Illuminate\Support\Carbon::parse($entry->entry_date)->format('d M Y') }}</td>
                                 <td class="px-4 py-2.5 text-gray-700 dark:text-gray-300">
                                     {{ $entry->description }}
-                                    @if (! $entry->reference_type)
+                                    @if ($entry->isManual())
                                         <span class="ml-1.5 inline-flex items-center rounded-full bg-gray-100 dark:bg-gray-700 px-2 py-0.5 text-xs font-medium text-gray-500 dark:text-gray-400">Manual</span>
+                                    @endif
+                                    @if ($entry->revisions->isNotEmpty())
+                                        <button type="button" wire:click="toggleHistory({{ $entry->id }})" class="ml-1.5 inline-flex items-center rounded-full bg-amber-100 dark:bg-amber-900/40 px-2 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-300 hover:bg-amber-200">
+                                            Edited
+                                        </button>
                                     @endif
                                 </td>
                                 <td class="px-4 py-2.5 text-right text-rose-600">{{ $entry->type === 'debit' ? number_format((float) $entry->amount, 2) : '' }}</td>
                                 <td class="px-4 py-2.5 text-right text-emerald-600">{{ $entry->type === 'credit' ? number_format((float) $entry->amount, 2) : '' }}</td>
                                 <td class="px-4 py-2.5 text-right font-medium text-gray-900 dark:text-white">{{ number_format((float) $entry->running_balance, 2) }}</td>
+                                <td class="px-4 py-2.5 text-right whitespace-nowrap">
+                                    @if ($entry->isManual() && auth()->user()->hasRole('Shop Admin'))
+                                        <button type="button" wire:click="startEdit({{ $entry->id }})" class="text-walnut-400 hover:text-walnut-400 font-medium text-xs">Edit</button>
+                                    @endif
+                                </td>
                             </tr>
+                            @if ($expandedEntryId === $entry->id)
+                                <tr>
+                                    <td colspan="6" class="px-4 py-3 bg-amber-50/60 dark:bg-amber-950/20">
+                                        <p class="text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300 mb-2">Edit History</p>
+                                        <div class="space-y-1.5 text-xs text-gray-600 dark:text-gray-300">
+                                            @foreach ($entry->revisions as $revision)
+                                                <div class="flex flex-wrap items-center gap-2 rounded-lg bg-white/70 dark:bg-gray-900/40 px-3 py-2">
+                                                    <span class="text-gray-400">{{ $revision->created_at->format('d M Y, g:i A') }}</span>
+                                                    <span>by {{ $revision->editor?->name ?? 'Unknown' }}</span>
+                                                    <span class="ml-auto">
+                                                        Previously: {{ $revision->type === 'debit' ? 'Cash Out' : 'Cash In' }} of
+                                                        Rs. {{ number_format((float) $revision->amount, 2) }}
+                                                        on {{ $revision->entry_date->format('d M Y') }} — "{{ $revision->description }}"
+                                                    </span>
+                                                </div>
+                                            @endforeach
+                                            <div class="flex flex-wrap items-center gap-2 rounded-lg bg-white/70 dark:bg-gray-900/40 px-3 py-2">
+                                                <span class="text-gray-400">Now</span>
+                                                <span class="ml-auto">
+                                                    Currently: {{ $entry->type === 'debit' ? 'Cash Out' : 'Cash In' }} of
+                                                    Rs. {{ number_format((float) $entry->amount, 2) }}
+                                                    on {{ $entry->entry_date->format('d M Y') }} — "{{ $entry->description }}"
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                            @endif
                         @empty
-                            <tr><td colspan="5" class="px-4 py-6 text-center text-gray-400">No ledger activity yet.</td></tr>
+                            <tr><td colspan="6" class="px-4 py-6 text-center text-gray-400">No ledger activity yet.</td></tr>
                         @endforelse
                     </tbody>
                 </table>

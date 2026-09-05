@@ -1,0 +1,39 @@
+<?php
+
+namespace App\Models;
+
+use App\Traits\BelongsToShop;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+
+class Expense extends Model
+{
+    use BelongsToShop, HasFactory;
+
+    /** Common categories offered in the UI — the column itself is a free string, so older/custom values still display fine. */
+    public const CATEGORIES = ['Rent', 'Utilities', 'Salaries', 'Transport', 'Maintenance', 'Other'];
+
+    protected $fillable = [
+        'shop_id',
+        'category',
+        'amount',
+        'expense_date',
+        'description',
+        'payment_mode',
+        'created_by',
+    ];
+
+    protected function casts(): array
+    {
+        return [
+            'amount' => 'decimal:2',
+            'expense_date' => 'date',
+        ];
+    }
+
+    public function creator(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
+}

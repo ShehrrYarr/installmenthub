@@ -21,6 +21,7 @@ class RoleAndPermissionSeeder extends Seeder
             'collect-payments',
             'view-reports',
             'approve-agreements',
+            'manage-expenses',
         ];
 
         foreach ($permissions as $permission) {
@@ -38,7 +39,7 @@ class RoleAndPermissionSeeder extends Seeder
         // have full access and aren't subject to the per-staff toggles below.
         $shopAdmin->syncPermissions([
             'manage-vendors', 'manage-products', 'manage-purchase-orders', 'approve-agreements',
-            'manage-customers', 'manage-agreements', 'collect-payments', 'view-reports',
+            'manage-customers', 'manage-agreements', 'collect-payments', 'view-reports', 'manage-expenses',
         ]);
 
         // ShopPermissions::TOGGLEABLE ('manage-vendors', 'manage-products',
@@ -51,11 +52,11 @@ class RoleAndPermissionSeeder extends Seeder
         // are granted per-user (see backfill below), which Settings → Staff
         // then lets each Shop Admin toggle independently for their own team.
         $manager->syncPermissions([
-            'manage-customers', 'manage-agreements', 'collect-payments', 'view-reports',
+            'manage-customers', 'manage-agreements', 'collect-payments', 'view-reports', 'manage-expenses',
         ]);
 
         $salesman->syncPermissions([
-            'manage-customers', 'manage-agreements', 'collect-payments',
+            'manage-customers', 'manage-agreements', 'collect-payments', 'manage-expenses',
         ]);
 
         // Backfill: give existing Managers the direct permissions that used to

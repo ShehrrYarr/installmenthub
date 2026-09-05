@@ -6,6 +6,7 @@ use App\Traits\BelongsToShop;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 
 class CustomerLedgerEntry extends Model
@@ -53,5 +54,16 @@ class CustomerLedgerEntry extends Model
     public function reference(): MorphTo
     {
         return $this->morphTo();
+    }
+
+    public function revisions(): HasMany
+    {
+        return $this->hasMany(CustomerLedgerEntryRevision::class)->latest('id');
+    }
+
+    /** Manually-added entries (Cash In/Cash Out) have no source document — everything else is system-generated and must never be edited. */
+    public function isManual(): bool
+    {
+        return $this->reference_type === null;
     }
 }

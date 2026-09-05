@@ -71,6 +71,10 @@ Route::middleware(['auth', 'tenant.resolve'])
         Volt::route('purchase-orders/create', 'purchase-orders.form')->name('purchase-orders.create');
         Volt::route('purchase-orders/{purchaseOrder}/receive', 'purchase-orders.receive')->name('purchase-orders.receive');
 
+        Volt::route('expenses', 'expenses.index')->name('expenses.index');
+        Volt::route('expenses/create', 'expenses.form')->name('expenses.create');
+        Volt::route('expenses/{expense}/edit', 'expenses.form')->name('expenses.edit');
+
         Volt::route('customers', 'customers.index')->name('customers.index');
         Volt::route('customers/create', 'customers.form')->name('customers.create');
         Volt::route('customers/{customer}/edit', 'customers.form')->name('customers.edit');
