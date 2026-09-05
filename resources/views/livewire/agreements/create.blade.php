@@ -43,14 +43,11 @@ new #[Layout('layouts.tenant')] class extends Component
     #[Validate('required|numeric|min:0')]
     public string $processingFee = '0';
 
-    #[Validate('required|integer|min:1')]
+    #[Validate('required|integer|min:1|max:36')]
     public int $durationMonths = 12;
 
     #[Validate('required|date')]
     public string $startDate = '';
-
-    /** @var array<int, int> */
-    public array $durations = [3, 6, 9, 12, 18, 24];
 
     #[Validate('required|string|max:255')]
     public string $guarantor1_name = '';
@@ -66,19 +63,26 @@ new #[Layout('layouts.tenant')] class extends Component
 
     public string $guarantor1_address = '';
 
-    #[Validate('required|string|max:255')]
+    // Guarantor 2 is optional — only required to be complete once any one of
+    // its fields is filled in (see save()), so no #[Validate] attributes here.
     public string $guarantor2_name = '';
 
-    #[Validate('required|string|max:20')]
     public string $guarantor2_cnic = '';
 
-    #[Validate('required|string|max:30')]
     public string $guarantor2_mobile = '';
 
-    #[Validate('required|string|max:100')]
     public string $guarantor2_relation = '';
 
     public string $guarantor2_address = '';
+
+    private function guarantor2Provided(): bool
+    {
+        return trim($this->guarantor2_name) !== ''
+            || trim($this->guarantor2_cnic) !== ''
+            || trim($this->guarantor2_mobile) !== ''
+            || trim($this->guarantor2_relation) !== ''
+            || trim($this->guarantor2_address) !== '';
+    }
 
     public function mount(): void
     {
@@ -115,6 +119,27 @@ new #[Layout('layouts.tenant')] class extends Component
                 'id' => $customer->id,
                 'label' => "{$customer->first_name} {$customer->last_name}",
                 'sublabel' => "{$customer->cnic_number} · {$customer->phone}",
+            ])
+            ->all();
+    }
+
+    /** @return array<int, array{id: int, label: string, sublabel: string}> */
+    public function searchSerials(string $query): array
+    {
+        if (! $this->product_id) {
+            return [];
+        }
+
+        return ProductSerial::where('product_id', $this->product_id)
+            ->where('status', 'in_stock')
+            ->where('serial_number', 'like', "%{$query}%")
+            ->orderBy('serial_number')
+            ->limit(15)
+            ->get()
+            ->map(fn ($serial) => [
+                'id' => $serial->id,
+                'label' => $serial->serial_number,
+                'sublabel' => '',
             ])
             ->all();
     }
@@ -199,6 +224,15 @@ new #[Layout('layouts.tenant')] class extends Component
     public function save(): void
     {
         $this->validate();
+
+        if ($this->guarantor2Provided()) {
+            $this->validate([
+                'guarantor2_name' => 'required|string|max:255',
+                'guarantor2_cnic' => 'required|string|max:20',
+                'guarantor2_mobile' => 'required|string|max:30',
+                'guarantor2_relation' => 'required|string|max:100',
+            ]);
+        }
 
         // The `exists:table,id` validation rules above run a plain DB query and
         // don't see ShopScope, so they'd accept another shop's customer/product
@@ -294,14 +328,16 @@ new #[Layout('layouts.tenant')] class extends Component
                 'work_address' => $this->guarantor1_address ?: null,
             ]);
 
-            Guarantor::create([
-                'agreement_id' => $agreement->id,
-                'name' => $this->guarantor2_name,
-                'cnic_number' => $this->guarantor2_cnic,
-                'mobile_number' => $this->guarantor2_mobile,
-                'relation' => $this->guarantor2_relation,
-                'work_address' => $this->guarantor2_address ?: null,
-            ]);
+            if ($this->guarantor2Provided()) {
+                Guarantor::create([
+                    'agreement_id' => $agreement->id,
+                    'name' => $this->guarantor2_name,
+                    'cnic_number' => $this->guarantor2_cnic,
+                    'mobile_number' => $this->guarantor2_mobile,
+                    'relation' => $this->guarantor2_relation,
+                    'work_address' => $this->guarantor2_address ?: null,
+                ]);
+            }
 
             $lastBalance = CustomerLedgerEntry::where('customer_id', $this->customer_id)->latest('id')->value('running_balance') ?? '0.00';
 
@@ -337,7 +373,7 @@ new #[Layout('layouts.tenant')] class extends Component
 
 <div>
 
-    <form wire:submit="save" class="max-w-4xl space-y-6">
+    <form wire:submit="save" class="max-w-4xl space-y-6" wire:loading.class="opacity-50 pointer-events-none" wire:target="save">
         <div class="rounded-2xl border border-white/40 dark:border-gray-700/60 bg-white/70 dark:bg-gray-800/60 backdrop-blur-xl shadow-lg shadow-gray-900/5 p-5 space-y-4">
             <h3 class="font-semibold text-gray-900 dark:text-white">Customer & Product</h3>
 
@@ -368,12 +404,8 @@ new #[Layout('layouts.tenant')] class extends Component
                 @if ($this->selectedProduct?->is_serialized)
                     <div>
                         <x-input-label for="product_serial_id" value="Serial / IMEI" />
-                        <select id="product_serial_id" wire:model="product_serial_id" class="mt-1 block w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-900 shadow-sm focus:border-walnut-400 focus:ring-walnut-400">
-                            <option value="">Select unit…</option>
-                            @foreach ($this->availableSerials as $serial)
-                                <option value="{{ $serial->id }}">{{ $serial->serial_number }}</option>
-                            @endforeach
-                        </select>
+                        <x-search-select search-method="searchSerials" model="product_serial_id" :min-chars="1"
+                            placeholder="Search serial/IMEI…" class="mt-1" />
                         <x-input-error :messages="$errors->get('product_serial_id')" class="mt-1" />
                         @if ($this->availableSerials->isEmpty())
                             <p class="text-xs text-rose-500 mt-1">No in-stock units for this product.</p>
@@ -421,18 +453,11 @@ new #[Layout('layouts.tenant')] class extends Component
                 </div>
 
                 <div>
-                    <x-input-label value="Duration" />
-                    <div class="mt-2 flex flex-wrap gap-2">
-                        @foreach ($durations as $months)
-                            <button type="button" wire:click="$set('durationMonths', {{ $months }})"
-                                class="rounded-full px-4 py-1.5 text-sm font-medium transition
-                                       {{ $durationMonths === $months
-                                            ? 'bg-walnut-600 text-white'
-                                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300' }}">
-                                {{ $months }} mo
-                            </button>
-                        @endforeach
-                    </div>
+                    <x-input-label for="durationMonths" value="Duration (months)" />
+                    <x-text-input id="durationMonths" type="number" min="1" max="36" step="1"
+                        wire:model.live="durationMonths" class="mt-1 block w-full sm:w-32" />
+                    <p class="mt-1 text-xs text-gray-400">1–36 months</p>
+                    <x-input-error :messages="$errors->get('durationMonths')" class="mt-1" />
                 </div>
             </div>
 
@@ -451,11 +476,16 @@ new #[Layout('layouts.tenant')] class extends Component
         </div>
 
         <div class="rounded-2xl border border-white/40 dark:border-gray-700/60 bg-white/70 dark:bg-gray-800/60 backdrop-blur-xl shadow-lg shadow-gray-900/5 p-5 space-y-4">
-            <h3 class="font-semibold text-gray-900 dark:text-white">Guarantors <span class="text-xs font-normal text-gray-400">(2 required)</span></h3>
+            <h3 class="font-semibold text-gray-900 dark:text-white">Guarantors <span class="text-xs font-normal text-gray-400">(at least 1 required)</span></h3>
 
             @foreach ([1, 2] as $n)
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 {{ $n === 2 ? 'border-t border-gray-100 dark:border-gray-700 pt-4' : '' }}">
-                    <p class="sm:col-span-2 text-sm font-medium text-gray-600 dark:text-gray-300">Guarantor {{ $n }}</p>
+                    <p class="sm:col-span-2 text-sm font-medium text-gray-600 dark:text-gray-300">
+                        Guarantor {{ $n }}
+                        @if ($n === 2)
+                            <span class="font-normal text-gray-400">(optional)</span>
+                        @endif
+                    </p>
                     <div>
                         <x-input-label value="Full Name" />
                         <x-text-input wire:model="guarantor{{ $n }}_name" class="mt-1 block w-full" />
@@ -485,8 +515,14 @@ new #[Layout('layouts.tenant')] class extends Component
         </div>
 
         <div class="flex items-center gap-3">
-            <button type="submit" class="rounded-lg bg-walnut-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-walnut-400">
-                Create Agreement
+            <button type="submit" wire:loading.attr="disabled" wire:target="save"
+                class="inline-flex items-center justify-center gap-2 rounded-lg bg-walnut-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-walnut-400 disabled:opacity-50 disabled:cursor-not-allowed">
+                <svg wire:loading wire:target="save" class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                </svg>
+                <span wire:loading.remove wire:target="save">Create Agreement</span>
+                <span wire:loading wire:target="save">Creating…</span>
             </button>
             <a href="{{ \Illuminate\Support\Facades\Route::has('tenant.agreements.index') ? route('tenant.agreements.index') : '/' }}" wire:navigate class="text-sm text-gray-500 hover:text-gray-700">Cancel</a>
         </div>

@@ -55,6 +55,12 @@ new #[Layout('layouts.tenant')] class extends Component
 
 <div>
 
+    @if (session('status'))
+        <div class="mb-6 rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+            {{ session('status') }}
+        </div>
+    @endif
+
     <div class="space-y-4">
         <select wire:model.live="status" class="rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-800 shadow-sm">
             <option value="all">All statuses</option>
