@@ -9,7 +9,6 @@ new #[Layout('layouts.marketing')] class extends Component
 {
     /** @var array<int, array{icon: string, title: string, description: string}> */
     public array $features = [
-        ['icon' => 'shield-check', 'title' => 'Multi-Tenant Shop Isolation', 'description' => "Every shop's data is automatically scoped — vendors, customers, and agreements never leak across shops, even for staff logged into different shops at once."],
         ['icon' => 'calculator', 'title' => 'Instant EMI Calculator', 'description' => 'Live down-payment, interest, and monthly-installment preview with a full schedule breakdown — before an agreement is ever created.'],
         ['icon' => 'truck', 'title' => 'Vendors & Purchase Orders', 'description' => 'Track suppliers and bank details, receive stock against purchase orders, and get automatic double-entry vendor ledgers.'],
         ['icon' => 'cube', 'title' => 'Serial / IMEI Tracking', 'description' => 'Every serialized unit — phones, laptops, ACs, fridges, inverters — gets a unique serial number registered at stock receiving.'],
@@ -63,7 +62,6 @@ new #[Layout('layouts.marketing')] class extends Component
             <div class="flex items-center gap-4">
                 <a href="#demo" class="hidden sm:inline text-sm font-medium text-white/85 hover:text-white">Live Demo</a>
                 <a href="#features" class="hidden sm:inline text-sm font-medium text-white/85 hover:text-white">Features</a>
-                <a href="{{ route('superadmin.login') }}" class="rounded-lg bg-walnut-900 px-4 py-2 text-sm font-medium text-white hover:bg-walnut-900/80">Admin Login</a>
             </div>
         </div>
     </header>
