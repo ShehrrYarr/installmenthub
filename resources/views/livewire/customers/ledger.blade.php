@@ -26,6 +26,9 @@ new #[Layout('layouts.tenant')] class extends Component
     #[Validate('required|numeric|min:0.01')]
     public string $entryAmount = '';
 
+    #[Validate('required|in:cash,bank,easypaisa,jazzcash,other')]
+    public string $entryPaymentMode = 'cash';
+
     #[Validate('required|date|before_or_equal:today')]
     public string $entryDate = '';
 
@@ -61,6 +64,7 @@ new #[Layout('layouts.tenant')] class extends Component
         $this->editingEntryId = $entry->id;
         $this->entryDirection = $entry->type === 'credit' ? 'cash_in' : 'cash_out';
         $this->entryAmount = (string) $entry->amount;
+        $this->entryPaymentMode = $entry->payment_mode ?? 'cash';
         $this->entryDate = $entry->entry_date->toDateString();
         $this->entryDescription = (string) $entry->description;
         $this->entryAgreementId = $entry->agreement_id;
@@ -96,6 +100,7 @@ new #[Layout('layouts.tenant')] class extends Component
                 'customer_ledger_entry_id' => $entry->id,
                 'type' => $entry->type,
                 'amount' => $entry->amount,
+                'payment_mode' => $entry->payment_mode,
                 'agreement_id' => $entry->agreement_id,
                 'description' => $entry->description,
                 'entry_date' => $entry->entry_date,
@@ -106,6 +111,7 @@ new #[Layout('layouts.tenant')] class extends Component
                 'agreement_id' => $this->entryAgreementId,
                 'type' => $type,
                 'amount' => $this->entryAmount,
+                'payment_mode' => $this->entryPaymentMode,
                 'description' => $this->entryDescription,
                 'entry_date' => $this->entryDate,
             ]);
@@ -117,6 +123,7 @@ new #[Layout('layouts.tenant')] class extends Component
                 'agreement_id' => $this->entryAgreementId,
                 'type' => $type,
                 'amount' => $this->entryAmount,
+                'payment_mode' => $this->entryPaymentMode,
                 'running_balance' => '0.00',
                 'reference_type' => null,
                 'reference_id' => null,
@@ -128,7 +135,7 @@ new #[Layout('layouts.tenant')] class extends Component
             session()->flash('status', 'Ledger entry added.');
         }
 
-        $this->recalculateRunningBalances();
+        CustomerLedgerEntry::recalculateFor($this->customer->id);
 
         unset($this->entries);
         $this->editingEntryId = null;
@@ -140,33 +147,8 @@ new #[Layout('layouts.tenant')] class extends Component
     {
         $this->reset(['entryAmount', 'entryDescription', 'entryAgreementId']);
         $this->entryDirection = 'cash_in';
+        $this->entryPaymentMode = 'cash';
         $this->entryDate = now()->toDateString();
-    }
-
-    /**
-     * Recomputes running_balance for every one of this customer's ledger
-     * entries in true chronological order (entry_date, then id as a
-     * tie-breaker) — the only way to stay correct once a manual entry can be
-     * added or edited with a backdated date, rather than always landing at
-     * the end of the sequence like automatic entries do.
-     */
-    private function recalculateRunningBalances(): void
-    {
-        $running = '0.00';
-
-        CustomerLedgerEntry::where('customer_id', $this->customer->id)
-            ->orderBy('entry_date')
-            ->orderBy('id')
-            ->get()
-            ->each(function (CustomerLedgerEntry $entry) use (&$running) {
-                $running = $entry->type === 'debit'
-                    ? bcadd($running, (string) $entry->amount, 2)
-                    : bcsub($running, (string) $entry->amount, 2);
-
-                if (bccomp($running, (string) $entry->running_balance, 2) !== 0) {
-                    $entry->update(['running_balance' => $running]);
-                }
-            });
     }
 
     #[Computed]
@@ -179,7 +161,7 @@ new #[Layout('layouts.tenant')] class extends Component
     public function entries()
     {
         return $this->customer->ledgerEntries()
-            ->with(['revisions.editor'])
+            ->with(['revisions.editor', 'reference'])
             ->orderBy('entry_date')
             ->orderBy('id')
             ->get();
@@ -285,6 +267,17 @@ new #[Layout('layouts.tenant')] class extends Component
                             <x-text-input type="date" wire:model="entryDate" class="mt-1 block w-full" />
                             <x-input-error :messages="$errors->get('entryDate')" class="mt-1" />
                         </div>
+                        <div>
+                            <x-input-label value="Payment Method" />
+                            <select wire:model="entryPaymentMode" class="mt-1 block w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-900 shadow-sm focus:border-walnut-400 focus:ring-walnut-400">
+                                <option value="cash">Cash</option>
+                                <option value="bank">Bank Transfer</option>
+                                <option value="easypaisa">EasyPaisa</option>
+                                <option value="jazzcash">JazzCash</option>
+                                <option value="other">Other</option>
+                            </select>
+                            <x-input-error :messages="$errors->get('entryPaymentMode')" class="mt-1" />
+                        </div>
                         <div class="sm:col-span-2">
                             <x-input-label value="Description" />
                             <x-text-input wire:model="entryDescription" placeholder="e.g. Cash collected before switching to this system" class="mt-1 block w-full" />
@@ -331,6 +324,9 @@ new #[Layout('layouts.tenant')] class extends Component
                                 <td class="px-4 py-2.5 text-gray-500">{{ \Illuminate\Support\Carbon::parse($entry->entry_date)->format('d M Y') }}</td>
                                 <td class="px-4 py-2.5 text-gray-700 dark:text-gray-300">
                                     {{ $entry->description }}
+                                    @if ($entry->paymentModeLabel())
+                                        <span class="text-xs text-gray-400">({{ $entry->paymentModeLabel() }})</span>
+                                    @endif
                                     @if ($entry->isManual())
                                         <span class="ml-1.5 inline-flex items-center rounded-full bg-gray-100 dark:bg-gray-700 px-2 py-0.5 text-xs font-medium text-gray-500 dark:text-gray-400">Manual</span>
                                     @endif
@@ -361,6 +357,7 @@ new #[Layout('layouts.tenant')] class extends Component
                                                     <span class="ml-auto">
                                                         Previously: {{ $revision->type === 'debit' ? 'Cash Out' : 'Cash In' }} of
                                                         Rs. {{ number_format((float) $revision->amount, 2) }}
+                                                        @if ($revision->payment_mode) ({{ ucfirst($revision->payment_mode) }}) @endif
                                                         on {{ $revision->entry_date->format('d M Y') }} — "{{ $revision->description }}"
                                                     </span>
                                                 </div>
@@ -370,6 +367,7 @@ new #[Layout('layouts.tenant')] class extends Component
                                                 <span class="ml-auto">
                                                     Currently: {{ $entry->type === 'debit' ? 'Cash Out' : 'Cash In' }} of
                                                     Rs. {{ number_format((float) $entry->amount, 2) }}
+                                                    @if ($entry->payment_mode) ({{ ucfirst($entry->payment_mode) }}) @endif
                                                     on {{ $entry->entry_date->format('d M Y') }} — "{{ $entry->description }}"
                                                 </span>
                                             </div>

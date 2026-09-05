@@ -1,6 +1,8 @@
 <?php
 
 use App\Models\Agreement;
+use App\Models\Payment;
+use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
 use Livewire\Volt\Component;
 
@@ -16,6 +18,13 @@ new #[Layout('layouts.tenant')] class extends Component
             'schedules' => fn ($q) => $q->orderBy('installment_number'),
             'payments' => fn ($q) => $q->latest('paid_at'),
         ]);
+    }
+
+    /** The down payment is recorded as a Payment with no installment tied to it. */
+    #[Computed]
+    public function downPaymentReceipt(): ?Payment
+    {
+        return $this->agreement->payments->firstWhere('installment_schedule_id', null);
     }
 
     public function approve(): void
@@ -144,7 +153,13 @@ new #[Layout('layouts.tenant')] class extends Component
                     <div class="space-y-2">
                         @forelse ($agreement->payments as $payment)
                             <div class="flex items-center justify-between text-sm rounded-lg bg-gray-50 dark:bg-gray-900/40 px-3 py-2">
-                                <span class="text-gray-500">{{ $payment->paid_at->format('d M Y, h:i A') }} · {{ $payment->receipt_number }}</span>
+                                <span class="text-gray-500">
+                                    {{ $payment->paid_at->format('d M Y, h:i A') }} · {{ $payment->receipt_number }}
+                                    · {{ ucfirst($payment->payment_mode) }}
+                                    @if (is_null($payment->installment_schedule_id))
+                                        <span class="ml-1 inline-flex items-center rounded-full bg-sky-100 dark:bg-sky-900/40 px-2 py-0.5 text-xs font-medium text-sky-700 dark:text-sky-300">Down Payment</span>
+                                    @endif
+                                </span>
                                 <span class="font-medium text-emerald-600 dark:text-emerald-400">Rs. {{ number_format((float) $payment->amount, 2) }}</span>
                             </div>
                         @empty
@@ -159,7 +174,15 @@ new #[Layout('layouts.tenant')] class extends Component
                     <h3 class="font-semibold text-walnut-900 dark:text-walnut-200">EMI Terms</h3>
                     <dl class="space-y-2 text-sm">
                         <div class="flex justify-between"><dt class="text-walnut-600/70 dark:text-walnut-200/70">Product Price</dt><dd class="text-walnut-900 dark:text-walnut-200">Rs. {{ number_format((float) $agreement->product_price, 2) }}</dd></div>
-                        <div class="flex justify-between"><dt class="text-walnut-600/70 dark:text-walnut-200/70">Down Payment</dt><dd class="text-walnut-900 dark:text-walnut-200">Rs. {{ number_format((float) $agreement->down_payment, 2) }}</dd></div>
+                        <div class="flex justify-between">
+                            <dt class="text-walnut-600/70 dark:text-walnut-200/70">Down Payment</dt>
+                            <dd class="text-walnut-900 dark:text-walnut-200">
+                                Rs. {{ number_format((float) $agreement->down_payment, 2) }}
+                                @if ($this->downPaymentReceipt)
+                                    <span class="text-xs text-walnut-600/70 dark:text-walnut-200/70">({{ ucfirst($this->downPaymentReceipt->payment_mode) }})</span>
+                                @endif
+                            </dd>
+                        </div>
                         <div class="flex justify-between"><dt class="text-walnut-600/70 dark:text-walnut-200/70">Interest Rate</dt><dd class="text-walnut-900 dark:text-walnut-200">{{ $agreement->interest_rate }}%</dd></div>
                         <div class="flex justify-between"><dt class="text-walnut-600/70 dark:text-walnut-200/70">Duration</dt><dd class="text-walnut-900 dark:text-walnut-200">{{ $agreement->duration_months }} mo</dd></div>
                         <div class="flex justify-between border-t border-walnut-200 dark:border-walnut-900 pt-2"><dt class="text-walnut-600/70 dark:text-walnut-200/70">Monthly Installment</dt><dd class="font-semibold text-walnut-900 dark:text-walnut-200">Rs. {{ number_format((float) $agreement->monthly_installment, 2) }}</dd></div>

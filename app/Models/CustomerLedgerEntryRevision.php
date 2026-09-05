@@ -15,6 +15,7 @@ class CustomerLedgerEntryRevision extends Model
         'customer_ledger_entry_id',
         'type',
         'amount',
+        'payment_mode',
         'agreement_id',
         'description',
         'entry_date',

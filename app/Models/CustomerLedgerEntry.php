@@ -19,6 +19,7 @@ class CustomerLedgerEntry extends Model
         'agreement_id',
         'type',
         'amount',
+        'payment_mode',
         'running_balance',
         'reference_type',
         'reference_id',
@@ -65,5 +66,38 @@ class CustomerLedgerEntry extends Model
     public function isManual(): bool
     {
         return $this->reference_type === null;
+    }
+
+    /** This entry's own payment_mode (manual entries), or the mode of the Payment it's linked to (e.g. a down payment or installment collection). */
+    public function paymentModeLabel(): ?string
+    {
+        $mode = $this->payment_mode ?? ($this->reference_type === Payment::class ? $this->reference?->payment_mode : null);
+
+        return $mode ? ucfirst($mode) : null;
+    }
+
+    /**
+     * Recomputes running_balance for every one of this customer's ledger
+     * entries in true chronological order (entry_date, then id as a
+     * tie-breaker) — the only way to stay correct once an entry can be
+     * added, edited, or backdated out of insertion order.
+     */
+    public static function recalculateFor(int $customerId): void
+    {
+        $running = '0.00';
+
+        static::where('customer_id', $customerId)
+            ->orderBy('entry_date')
+            ->orderBy('id')
+            ->get()
+            ->each(function (self $entry) use (&$running) {
+                $running = $entry->type === 'debit'
+                    ? bcadd($running, (string) $entry->amount, 2)
+                    : bcsub($running, (string) $entry->amount, 2);
+
+                if (bccomp($running, (string) $entry->running_balance, 2) !== 0) {
+                    $entry->update(['running_balance' => $running]);
+                }
+            });
     }
 }

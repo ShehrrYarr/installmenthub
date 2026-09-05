@@ -6,6 +6,7 @@ use App\Models\Customer;
 use App\Models\CustomerLedgerEntry;
 use App\Models\Guarantor;
 use App\Models\InstallmentSchedule;
+use App\Models\Payment;
 use App\Models\Product;
 use App\Models\ProductSerial;
 use App\Models\User;
@@ -36,6 +37,9 @@ new #[Layout('layouts.tenant')] class extends Component
 
     #[Validate('required|numeric|min:0')]
     public string $downPaymentValue = '20';
+
+    #[Validate('required|in:cash,bank,easypaisa,jazzcash,other')]
+    public string $downPaymentMode = 'cash';
 
     #[Validate('required|numeric|min:0')]
     public string $interestRate = '12';
@@ -339,20 +343,55 @@ new #[Layout('layouts.tenant')] class extends Component
                 ]);
             }
 
-            $lastBalance = CustomerLedgerEntry::where('customer_id', $this->customer_id)->latest('id')->value('running_balance') ?? '0.00';
+            // The full obligation the customer signed up for — product price
+            // plus processing fee and interest — shown as one debit, with the
+            // down payment recorded as its own real Payment (so it shows up
+            // in "Collected" totals, payment history, and receipts, just
+            // like any other payment) and a matching ledger credit.
+            $totalObligation = bcadd($calculator->totalPayable(), $this->downPaymentAmount, 2);
 
             CustomerLedgerEntry::create([
                 'customer_id' => $this->customer_id,
                 'agreement_id' => $agreement->id,
                 'type' => 'debit',
-                'amount' => $calculator->totalPayable(),
-                'running_balance' => bcadd($lastBalance, $calculator->totalPayable(), 2),
+                'amount' => $totalObligation,
+                'running_balance' => '0.00',
                 'reference_type' => Agreement::class,
                 'reference_id' => $agreement->id,
                 'description' => "New agreement — {$agreement->agreement_number}",
                 'entry_date' => now()->toDateString(),
                 'created_by' => auth()->id(),
             ]);
+
+            if (bccomp($this->downPaymentAmount, '0', 2) > 0) {
+                $downPayment = Payment::create([
+                    'agreement_id' => $agreement->id,
+                    'installment_schedule_id' => null,
+                    'customer_id' => $this->customer_id,
+                    'amount' => $this->downPaymentAmount,
+                    'payment_mode' => $this->downPaymentMode,
+                    'received_by' => auth()->id(),
+                    'receipt_number' => 'RCP-'.$agreement->shop_id.'-'.now()->format('ymd').'-'.random_int(1000, 9999),
+                    'paid_at' => now(),
+                    'notes' => "Down payment for {$agreement->agreement_number}",
+                ]);
+
+                CustomerLedgerEntry::create([
+                    'customer_id' => $this->customer_id,
+                    'agreement_id' => $agreement->id,
+                    'type' => 'credit',
+                    'amount' => $this->downPaymentAmount,
+                    'payment_mode' => $this->downPaymentMode,
+                    'running_balance' => '0.00',
+                    'reference_type' => Payment::class,
+                    'reference_id' => $downPayment->id,
+                    'description' => "Down payment received — {$agreement->agreement_number}",
+                    'entry_date' => now()->toDateString(),
+                    'created_by' => auth()->id(),
+                ]);
+            }
+
+            CustomerLedgerEntry::recalculateFor($this->customer_id);
 
             return $agreement;
         });
@@ -437,6 +476,16 @@ new #[Layout('layouts.tenant')] class extends Component
                         </div>
                         <p class="mt-1 text-xs text-gray-400">≈ Rs. {{ number_format((float) $this->downPaymentAmount, 2) }}</p>
                         <x-input-error :messages="$errors->get('downPaymentValue')" class="mt-1" />
+                    </div>
+                    <div>
+                        <x-input-label value="Down Payment Method" />
+                        <select wire:model="downPaymentMode" class="mt-1 block w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-900 shadow-sm focus:border-walnut-400 focus:ring-walnut-400">
+                            <option value="cash">Cash</option>
+                            <option value="bank">Bank Transfer</option>
+                            <option value="easypaisa">EasyPaisa</option>
+                            <option value="jazzcash">JazzCash</option>
+                            <option value="other">Other</option>
+                        </select>
                     </div>
                     <div>
                         <x-input-label for="interestRate" value="Interest Rate (annual %)" />
