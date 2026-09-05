@@ -129,27 +129,6 @@ new #[Layout('layouts.tenant')] class extends Component
     }
 
     /** @return array<int, array{id: int, label: string, sublabel: string}> */
-    public function searchSerials(string $query): array
-    {
-        if (! $this->product_id) {
-            return [];
-        }
-
-        return ProductSerial::where('product_id', $this->product_id)
-            ->where('status', 'in_stock')
-            ->where('serial_number', 'like', "%{$query}%")
-            ->orderBy('serial_number')
-            ->limit(15)
-            ->get()
-            ->map(fn ($serial) => [
-                'id' => $serial->id,
-                'label' => $serial->serial_number,
-                'sublabel' => '',
-            ])
-            ->all();
-    }
-
-    /** @return array<int, array{id: int, label: string, sublabel: string}> */
     public function searchProducts(string $query): array
     {
         if (mb_strlen($query) < 2) {
@@ -442,10 +421,12 @@ new #[Layout('layouts.tenant')] class extends Component
                 </div>
 
                 @if ($this->selectedProduct?->is_serialized)
-                    <div>
+                    <div wire:key="serial-field-{{ $product_id }}">
                         <x-input-label for="product_serial_id" value="Serial / IMEI" />
-                        <x-search-select search-method="searchSerials" model="product_serial_id" :min-chars="1"
-                            placeholder="Search serial/IMEI…" class="mt-1" />
+                        <x-local-select
+                            :options="$this->availableSerials->map(fn ($serial) => ['id' => $serial->id, 'label' => $serial->serial_number])->values()->all()"
+                            model="product_serial_id"
+                            placeholder="Click to browse or search serial/IMEI…" class="mt-1" />
                         <x-input-error :messages="$errors->get('product_serial_id')" class="mt-1" />
                         @if ($this->availableSerials->isEmpty())
                             <p class="text-xs text-rose-500 mt-1">No in-stock units for this product.</p>
