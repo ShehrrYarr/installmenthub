@@ -115,7 +115,15 @@ new #[Layout('layouts.tenant')] class extends Component
                             @if ($item->productSerial)
                                 <span class="font-mono text-xs text-gray-500">{{ $item->productSerial->serial_number }}</span>
                             @endif
-                            <span class="text-gray-900 dark:text-white font-medium">Rs. {{ number_format((float) $item->unit_price, 0) }}</span>
+                            <span class="text-gray-900 dark:text-white font-medium">
+                                Rs. {{ number_format((float) $item->unit_price, 0) }}
+                                @if (auth()->user()->hasRole('Shop Admin'))
+                                    <span class="text-xs font-normal text-gray-500 dark:text-gray-400">
+                                        · Cost: Rs. {{ number_format((float) $item->product->cost_price, 0) }}
+                                        · Margin: Rs. {{ number_format((float) bcsub((string) $item->unit_price, (string) $item->product->cost_price, 2), 0) }}
+                                    </span>
+                                @endif
+                            </span>
                         </div>
                     @endforeach
                 </div>
