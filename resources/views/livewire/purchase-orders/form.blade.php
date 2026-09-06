@@ -224,11 +224,15 @@ new #[Layout('layouts.tenant')] class extends Component
                 </div>
                 <div>
                     <x-input-label for="invoice_number" value="Invoice #" />
-                    <x-text-input id="invoice_number" wire:model="invoice_number" class="mt-1 block w-full" />
+                    <x-text-input id="invoice_number" wire:model="invoice_number"
+                        class="mt-1 block w-full {{ $errors->has('invoice_number') ? 'border-rose-500 focus:border-rose-500 focus:ring-rose-500' : '' }}" />
+                    <x-input-error :messages="$errors->get('invoice_number')" class="mt-1" />
                 </div>
                 <div>
                     <x-input-label for="order_date" value="Order Date" />
-                    <x-text-input id="order_date" type="date" wire:model="order_date" class="mt-1 block w-full" />
+                    <x-text-input id="order_date" type="date" wire:model="order_date"
+                        class="mt-1 block w-full {{ $errors->has('order_date') ? 'border-rose-500 focus:border-rose-500 focus:ring-rose-500' : '' }}" />
+                    <x-input-error :messages="$errors->get('order_date')" class="mt-1" />
                 </div>
                 <div>
                     <x-input-label for="payment_mode" value="Payment Mode" />
@@ -237,6 +241,7 @@ new #[Layout('layouts.tenant')] class extends Component
                         <option value="bank">Bank</option>
                         <option value="credit">Credit</option>
                     </select>
+                    <x-input-error :messages="$errors->get('payment_mode')" class="mt-1" />
                 </div>
                 <div class="lg:col-span-3">
                     <x-input-label for="notes" value="Notes" />

@@ -14,7 +14,9 @@ new #[Layout('layouts.tenant')] class extends Component
     {
         $this->agreement = $agreement->load([
             'customer', 'salesman', 'approver', 'guarantors',
-            'items.product', 'items.productSerial',
+            'items.product',
+            'items.productSerial.purchaseOrderItem.purchaseOrder.vendor',
+            'items.purchaseOrderItem.purchaseOrder.vendor',
             'schedules' => fn ($q) => $q->orderBy('installment_number'),
             'payments' => fn ($q) => $q->latest('paid_at'),
         ]);
@@ -119,8 +121,11 @@ new #[Layout('layouts.tenant')] class extends Component
                                 Rs. {{ number_format((float) $item->unit_price, 0) }}
                                 @if (auth()->user()->hasRole('Shop Admin'))
                                     <span class="text-xs font-normal text-gray-500 dark:text-gray-400">
-                                        · Cost: Rs. {{ number_format((float) $item->product->cost_price, 0) }}
-                                        · Margin: Rs. {{ number_format((float) bcsub((string) $item->unit_price, (string) $item->product->cost_price, 2), 0) }}
+                                        · Cost: Rs. {{ number_format((float) $item->costPrice(), 0) }}
+                                        · Margin: Rs. {{ number_format((float) bcsub((string) $item->unit_price, $item->costPrice(), 2), 0) }}
+                                        @if ($item->vendorName())
+                                            · {{ $item->vendorName() }}
+                                        @endif
                                     </span>
                                 @endif
                             </span>

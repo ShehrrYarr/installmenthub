@@ -45,4 +45,21 @@ class PurchaseOrderItem extends Model
     {
         return $this->hasMany(ProductSerial::class);
     }
+
+    public function agreementItems(): HasMany
+    {
+        return $this->hasMany(AgreementItem::class);
+    }
+
+    /**
+     * How many units from this batch are still unsold. Only meaningful for
+     * non-serialized products — serialized units are tracked individually
+     * via ProductSerial.status instead. Sold quantity is never restored
+     * (agreement cancellation doesn't reverse it, matching how a sold
+     * ProductSerial is also never reverted to in_stock).
+     */
+    public function remainingQuantity(): int
+    {
+        return $this->quantity - $this->agreementItems()->sum('quantity');
+    }
 }

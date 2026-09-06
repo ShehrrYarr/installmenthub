@@ -9,6 +9,7 @@ use App\Models\InstallmentSchedule;
 use App\Models\Payment;
 use App\Models\Product;
 use App\Models\ProductSerial;
+use App\Models\PurchaseOrderItem;
 use App\Models\User;
 use App\Support\EmiCalculator;
 use Illuminate\Support\Facades\DB;
@@ -26,6 +27,8 @@ new #[Layout('layouts.tenant')] class extends Component
     public ?int $product_id = null;
 
     public ?int $product_serial_id = null;
+
+    public ?int $purchase_order_item_id = null;
 
     #[Validate('required|exists:users,id')]
     public ?int $salesman_id = null;
@@ -92,7 +95,9 @@ new #[Layout('layouts.tenant')] class extends Component
     {
         $shop = \App\Support\Tenant::current();
         $this->interestRate = (string) ($shop?->default_interest_rate ?? '12');
-        $this->processingFee = (string) ($shop?->default_processing_fee ?? '0');
+        // processingFee validates as `integer` — the shop setting is a decimal-cast
+        // attribute (e.g. "500.00"), which fails that rule if left untouched.
+        $this->processingFee = $this->wholeRupees($shop?->default_processing_fee ?? '0');
         $this->startDate = now()->toDateString();
         $this->salesman_id = auth()->user()->hasRole('Salesman') ? auth()->id() : null;
     }
@@ -101,8 +106,38 @@ new #[Layout('layouts.tenant')] class extends Component
     {
         $product = Product::find($this->product_id);
         $basis = \App\Support\Tenant::current()?->emi_price_basis ?? 'selling';
-        $this->productPrice = $product ? (string) ($basis === 'cost' ? $product->cost_price : $product->cash_price) : '0';
+        $this->productPrice = $product ? $this->wholeRupees($basis === 'cost' ? $product->cost_price : $product->cash_price) : '0';
         $this->product_serial_id = null;
+        $this->purchase_order_item_id = null;
+    }
+
+    /** Picking a specific unit/batch means we know its actual purchase price — use that over the product's shop-wide default. */
+    private function applyBatchPrice(?PurchaseOrderItem $batch): void
+    {
+        if (! $batch) {
+            return;
+        }
+
+        $basis = \App\Support\Tenant::current()?->emi_price_basis ?? 'selling';
+        $this->productPrice = $this->wholeRupees($basis === 'cost' ? $batch->cost_price : $batch->selling_cash_price);
+    }
+
+    /** productPrice validates as `integer` — decimal-cast model attributes (e.g. "69999.00") fail that rule, so strip to a plain whole-rupee string. */
+    private function wholeRupees(string|float $value): string
+    {
+        return (string) (int) round((float) $value);
+    }
+
+    public function updatedProductSerialId(): void
+    {
+        $serial = $this->availableSerials->firstWhere('id', $this->product_serial_id);
+
+        $this->applyBatchPrice($serial?->purchaseOrderItem);
+    }
+
+    public function updatedPurchaseOrderItemId(): void
+    {
+        $this->applyBatchPrice($this->availableBatches->firstWhere('id', $this->purchase_order_item_id));
     }
 
     /** @return array<int, array{id: int, label: string, sublabel: string}> */
@@ -168,6 +203,27 @@ new #[Layout('layouts.tenant')] class extends Component
         }
 
         return ProductSerial::where('product_id', $this->product_id)->where('status', 'in_stock')->get();
+    }
+
+    /**
+     * Purchase batches for this product that still have unsold stock — lets
+     * a non-serialized product (no individual IMEI to pick) still be sold
+     * against the specific vendor/price it was actually bought at.
+     */
+    #[Computed]
+    public function availableBatches()
+    {
+        if (! $this->product_id) {
+            return collect();
+        }
+
+        return PurchaseOrderItem::where('product_id', $this->product_id)
+            ->with('purchaseOrder.vendor')
+            ->withSum('agreementItems as sold_quantity', 'quantity')
+            ->oldest()
+            ->get()
+            ->filter(fn ($batch) => $batch->quantity - ($batch->sold_quantity ?? 0) > 0)
+            ->values();
     }
 
     #[Computed]
@@ -256,6 +312,12 @@ new #[Layout('layouts.tenant')] class extends Component
             return;
         }
 
+        if ($this->purchase_order_item_id && ! $this->availableBatches->contains('id', $this->purchase_order_item_id)) {
+            $this->addError('purchase_order_item_id', 'That purchase batch is no longer available for this product.');
+
+            return;
+        }
+
         if (bccomp($this->downPaymentAmount, $this->numeric($this->productPrice), 2) >= 0) {
             $this->addError('downPaymentValue', 'Down payment must be less than the product price.');
 
@@ -288,6 +350,7 @@ new #[Layout('layouts.tenant')] class extends Component
                 'agreement_id' => $agreement->id,
                 'product_id' => $this->product_id,
                 'product_serial_id' => $this->product_serial_id,
+                'purchase_order_item_id' => $this->product_serial_id ? null : $this->purchase_order_item_id,
                 'quantity' => 1,
                 'unit_price' => $this->numeric($this->productPrice),
             ]);
@@ -431,6 +494,19 @@ new #[Layout('layouts.tenant')] class extends Component
                         @if ($this->availableSerials->isEmpty())
                             <p class="text-xs text-rose-500 mt-1">No in-stock units for this product.</p>
                         @endif
+                    </div>
+                @elseif ($this->selectedProduct && $this->availableBatches->isNotEmpty())
+                    <div wire:key="batch-field-{{ $product_id }}">
+                        <x-input-label for="purchase_order_item_id" value="Purchase Batch" />
+                        <x-local-select
+                            :options="$this->availableBatches->map(fn ($batch) => [
+                                'id' => $batch->id,
+                                'label' => ($batch->purchaseOrder->vendor->name ?? 'Unknown vendor').' — Rs. '.number_format((float) $batch->cost_price, 0).' cost ('.($batch->quantity - ($batch->sold_quantity ?? 0)).' left)',
+                            ])->values()->all()"
+                            model="purchase_order_item_id"
+                            placeholder="This model was bought from more than one vendor — pick which batch you're selling…" class="mt-1" />
+                        <x-input-error :messages="$errors->get('purchase_order_item_id')" class="mt-1" />
+                        <p class="text-xs text-gray-400 mt-1">Optional — bought from more than one vendor at different prices? Pick the batch this unit came from.</p>
                     </div>
                 @endif
             </div>
