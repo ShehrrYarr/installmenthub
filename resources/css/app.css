@@ -14,3 +14,15 @@
         display: none;
     }
 }
+
+/* Briefly pulses around a field after scroll-to-validation-error.js scrolls
+   it into view, so a field that was off-screen is unmistakable once seen. */
+@keyframes validation-error-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(244, 63, 94, 0); }
+    25% { box-shadow: 0 0 0 4px rgba(244, 63, 94, 0.35); }
+}
+
+.validation-error-flash {
+    border-radius: 0.75rem;
+    animation: validation-error-pulse 0.8s ease-in-out 2;
+}
