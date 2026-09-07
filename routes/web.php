@@ -90,6 +90,8 @@ Route::middleware(['auth', 'tenant.resolve'])
         Volt::route('collections/book', 'collections.book')->name('collections.book');
         Route::get('collections/book/print', CollectionBookPrintController::class)->name('collections.book.print');
 
+        Volt::route('profile', 'settings.profile')->name('profile');
+
         Volt::route('settings/appearance', 'settings.appearance')->name('settings.appearance');
         Volt::route('settings/staff', 'settings.staff')->name('settings.staff');
         Volt::route('settings/emi', 'settings.emi')->name('settings.emi');

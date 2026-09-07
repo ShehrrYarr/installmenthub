@@ -36,7 +36,7 @@ new class extends Component
                 <p class="truncate text-sm font-medium text-gray-900">{{ auth()->user()->name }}</p>
                 <p class="truncate text-xs text-gray-500">{{ auth()->user()->getRoleNames()->first() ?? 'User' }}</p>
             </div>
-            <a href="{{ route('profile') }}" wire:navigate class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+            <a href="{{ route('tenant.profile') }}" wire:navigate class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
                 Profile
             </a>
             <button wire:click="logout" type="button" class="block w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100">
@@ -63,7 +63,7 @@ new class extends Component
 
         <div x-show="open" x-cloak x-transition
              class="absolute bottom-full left-0 z-50 mb-2 w-full min-w-[10rem] overflow-hidden rounded-xl border border-gray-200 bg-white py-1 shadow-lg">
-            <a href="{{ route('profile') }}" wire:navigate class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+            <a href="{{ route('tenant.profile') }}" wire:navigate class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
                 Profile
             </a>
             <button wire:click="logout" type="button" class="block w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100">
