@@ -63,7 +63,9 @@ new #[Layout('layouts.tenant')] class extends Component
 
         $this->editingEntryId = $entry->id;
         $this->entryDirection = $entry->type === 'credit' ? 'cash_in' : 'cash_out';
-        $this->entryAmount = (string) $entry->amount;
+        // entryAmount validates as `integer` — the decimal-cast attribute
+        // (e.g. "50000.00") fails that rule unless normalized first.
+        $this->entryAmount = (string) (int) $entry->amount;
         $this->entryPaymentMode = $entry->payment_mode ?? 'cash';
         $this->entryDate = $entry->entry_date->toDateString();
         $this->entryDescription = (string) $entry->description;
