@@ -109,8 +109,16 @@ new #[Layout('layouts.tenant')] class extends Component
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div class="lg:col-span-2 space-y-6">
-                <div class="rounded-2xl border border-white/40 dark:border-gray-700/60 bg-white/70 dark:bg-gray-800/60 backdrop-blur-xl shadow-lg shadow-gray-900/5 p-5">
-                    <h3 class="font-semibold text-gray-900 dark:text-white mb-3">Product</h3>
+                <div class="rounded-2xl border border-white/40 dark:border-gray-700/60 bg-white/70 dark:bg-gray-800/60 backdrop-blur-xl shadow-lg shadow-gray-900/5 p-5"
+                     @if (auth()->user()->hasRole('Shop Admin'))
+                         x-data="{ showCostMargin: false }" @keydown.window.f1.prevent="showCostMargin = !showCostMargin"
+                     @endif>
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="font-semibold text-gray-900 dark:text-white">Product</h3>
+                        @if (auth()->user()->hasRole('Shop Admin'))
+                            <span class="text-xs text-gray-400" x-show="!showCostMargin" x-cloak>Press F1 for cost &amp; margin</span>
+                        @endif
+                    </div>
                     @foreach ($agreement->items as $item)
                         <div class="flex items-center justify-between text-sm py-1.5">
                             <span class="text-gray-700 dark:text-gray-300">{{ $item->product->name }}</span>
@@ -120,7 +128,7 @@ new #[Layout('layouts.tenant')] class extends Component
                             <span class="text-gray-900 dark:text-white font-medium">
                                 Rs. {{ number_format((float) $item->unit_price, 0) }}
                                 @if (auth()->user()->hasRole('Shop Admin'))
-                                    <span class="text-xs font-normal text-gray-500 dark:text-gray-400">
+                                    <span class="text-xs font-normal text-gray-500 dark:text-gray-400" x-show="showCostMargin" x-cloak>
                                         · Cost: Rs. {{ number_format((float) $item->costPrice(), 0) }}
                                         · Margin: Rs. {{ number_format((float) bcsub((string) $item->unit_price, $item->costPrice(), 2), 0) }}
                                         @if ($item->vendorName())
