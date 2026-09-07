@@ -254,7 +254,7 @@ new #[Layout('layouts.tenant')] class extends Component
             </div>
 
             @if ($showEntryForm)
-                <form wire:submit="saveEntry" class="mx-5 mt-4 rounded-xl bg-gray-50 dark:bg-gray-900/40 p-4 space-y-4">
+                <form wire:submit="saveEntry" class="mx-5 mt-4 rounded-xl bg-gray-50 dark:bg-gray-900/40 p-4 space-y-4" wire:loading.class="opacity-50 pointer-events-none" wire:target="saveEntry">
                     <p class="text-sm font-medium text-gray-600 dark:text-gray-300">{{ $editingEntryId ? 'Edit Entry' : 'New Entry' }}</p>
                     <div class="flex gap-2">
                         <button type="button" wire:click="$set('entryDirection', 'cash_out')"
@@ -308,10 +308,17 @@ new #[Layout('layouts.tenant')] class extends Component
                     </div>
 
                     <div class="flex items-center gap-3">
-                        <button type="submit" class="rounded-lg bg-walnut-600 px-5 py-2 text-sm font-medium text-white hover:bg-walnut-400">
-                            {{ $editingEntryId ? 'Update Entry' : 'Save Entry' }}
+                        <button type="submit" wire:loading.attr="disabled" wire:target="saveEntry"
+                            class="inline-flex items-center justify-center gap-2 rounded-lg bg-walnut-600 px-5 py-2 text-sm font-medium text-white hover:bg-walnut-400 disabled:opacity-50 disabled:cursor-not-allowed">
+                            <svg wire:loading wire:target="saveEntry" class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                            </svg>
+                            <span wire:loading.remove wire:target="saveEntry">{{ $editingEntryId ? 'Update Entry' : 'Save Entry' }}</span>
+                            <span wire:loading wire:target="saveEntry">{{ $editingEntryId ? 'Updating…' : 'Saving…' }}</span>
                         </button>
-                        <button type="button" wire:click="toggleEntryForm" class="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700">
+                        <button type="button" wire:click="toggleEntryForm" wire:loading.attr="disabled" wire:target="saveEntry"
+                            class="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed">
                             Cancel
                         </button>
                     </div>
