@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\PurchaseOrder;
+use App\Models\PurchaseOrderItem;
 use App\Models\Vendor;
 use App\Models\VendorLedgerEntry;
 use App\Models\VendorLedgerEntryRevision;
@@ -8,10 +9,17 @@ use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Validate;
 use Livewire\Volt\Component;
+use Livewire\WithPagination;
 
 new #[Layout('layouts.tenant')] class extends Component
 {
+    use WithPagination;
+
     public Vendor $vendor;
+
+    public string $productsFrom = '';
+
+    public string $productsTo = '';
 
     public bool $showEntryForm = false;
 
@@ -185,10 +193,49 @@ new #[Layout('layouts.tenant')] class extends Component
         $this->entryDate = now()->toDateString();
     }
 
+    public function updatedProductsFrom(): void
+    {
+        $this->resetPage('productsPage');
+    }
+
+    public function updatedProductsTo(): void
+    {
+        $this->resetPage('productsPage');
+    }
+
+    public function clearProductsDateRange(): void
+    {
+        $this->reset(['productsFrom', 'productsTo']);
+        $this->resetPage('productsPage');
+    }
+
     #[Computed]
     public function purchaseOrders()
     {
         return $this->vendor->purchaseOrders()->latest('order_date')->get();
+    }
+
+    /** One row per product ever bought from this vendor — qty, spend, order count, last purchase — newest/biggest spend first. */
+    #[Computed]
+    public function productsPurchased()
+    {
+        return PurchaseOrderItem::query()
+            ->join('purchase_orders', 'purchase_orders.id', '=', 'purchase_order_items.purchase_order_id')
+            ->join('products', 'products.id', '=', 'purchase_order_items.product_id')
+            ->where('purchase_orders.vendor_id', $this->vendor->id)
+            ->when($this->productsFrom !== '', fn ($q) => $q->whereDate('purchase_orders.order_date', '>=', $this->productsFrom))
+            ->when($this->productsTo !== '', fn ($q) => $q->whereDate('purchase_orders.order_date', '<=', $this->productsTo))
+            ->groupBy('purchase_order_items.product_id', 'products.name')
+            ->selectRaw('
+                purchase_order_items.product_id,
+                products.name as product_name,
+                SUM(purchase_order_items.quantity) as total_quantity,
+                SUM(purchase_order_items.subtotal) as total_spent,
+                COUNT(DISTINCT purchase_order_items.purchase_order_id) as orders_count,
+                MAX(purchase_orders.order_date) as last_purchased
+            ')
+            ->orderByDesc('total_spent')
+            ->paginate(15, ['*'], 'productsPage');
     }
 
     #[Computed]
@@ -235,6 +282,59 @@ new #[Layout('layouts.tenant')] class extends Component
                 {{ session('status') }}
             </div>
         @endif
+
+        <div class="rounded-2xl border border-white/40 dark:border-gray-700/60 bg-white/70 dark:bg-gray-800/60 backdrop-blur-xl shadow-lg shadow-gray-900/5 overflow-hidden">
+            <div class="flex flex-wrap items-center justify-between gap-3 p-5 pb-0">
+                <h3 class="font-semibold text-gray-900 dark:text-white">Products Purchased</h3>
+                <div class="flex flex-wrap items-center gap-2">
+                    <x-text-input type="date" wire:model.live="productsFrom" class="text-sm" />
+                    <span class="text-xs text-gray-400">to</span>
+                    <x-text-input type="date" wire:model.live="productsTo" class="text-sm" />
+                    @if ($productsFrom || $productsTo)
+                        <button type="button" wire:click="clearProductsDateRange" class="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">
+                            Clear
+                        </button>
+                    @endif
+                </div>
+            </div>
+
+            <div class="overflow-x-auto mt-4">
+                <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
+                    <thead class="bg-gray-50 dark:bg-gray-900/50">
+                        <tr>
+                            <th class="px-4 py-3 text-left font-medium text-gray-500">Product</th>
+                            <th class="px-4 py-3 text-right font-medium text-gray-500">Qty Bought</th>
+                            <th class="px-4 py-3 text-right font-medium text-gray-500">Total Spent</th>
+                            <th class="px-4 py-3 text-right font-medium text-gray-500">Orders</th>
+                            <th class="px-4 py-3 text-left font-medium text-gray-500">Last Purchased</th>
+                            <th class="px-4 py-3"></th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
+                        @forelse ($this->productsPurchased as $row)
+                            <tr>
+                                <td class="px-4 py-2.5 font-medium text-gray-900 dark:text-white">{{ $row->product_name }}</td>
+                                <td class="px-4 py-2.5 text-right text-gray-700 dark:text-gray-300">{{ number_format((int) $row->total_quantity) }}</td>
+                                <td class="px-4 py-2.5 text-right text-gray-700 dark:text-gray-300">Rs. {{ number_format((float) $row->total_spent, 0) }}</td>
+                                <td class="px-4 py-2.5 text-right text-gray-700 dark:text-gray-300">{{ $row->orders_count }}</td>
+                                <td class="px-4 py-2.5 text-gray-500 dark:text-gray-400">{{ \Illuminate\Support\Carbon::parse($row->last_purchased)->format('d M Y') }}</td>
+                                <td class="px-4 py-2.5 text-right whitespace-nowrap">
+                                    <a href="{{ route('tenant.products.items', $row->product_id) }}" wire:navigate class="text-walnut-400 hover:text-walnut-200 font-medium text-xs">
+                                        View Items
+                                    </a>
+                                </td>
+                            </tr>
+                        @empty
+                            <tr><td colspan="6" class="px-4 py-6 text-center text-gray-400">No products purchased from this vendor{{ $productsFrom || $productsTo ? ' in this date range' : '' }}.</td></tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="p-5">
+                {{ $this->productsPurchased->links() }}
+            </div>
+        </div>
 
         <div class="rounded-2xl border border-white/40 dark:border-gray-700/60 bg-white/70 dark:bg-gray-800/60 backdrop-blur-xl shadow-lg shadow-gray-900/5 overflow-hidden">
             <div class="flex items-center justify-between p-5 pb-0">
