@@ -1,6 +1,7 @@
 <?php
 
 use App\Livewire\Actions\Logout;
+use App\Support\Tenant;
 use Livewire\Volt\Component;
 
 new class extends Component
@@ -10,9 +11,13 @@ new class extends Component
      */
     public function logout(Logout $logout): void
     {
+        // Captured before logout clears auth() — sends the user back to
+        // their own shop's login page instead of the generic landing page.
+        $shop = Tenant::current();
+
         $logout();
 
-        $this->redirect(route('landing'), navigate: true);
+        $this->redirect($shop ? route('login', ['shop' => $shop]) : route('landing'), navigate: true);
     }
 }; ?>
 

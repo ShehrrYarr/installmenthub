@@ -102,10 +102,18 @@ new #[Layout('layouts.tenant')] class extends Component
                         </div>
                     </dl>
 
-                    <a href="{{ \Illuminate\Support\Facades\Route::has('tenant.products.edit') ? route('tenant.products.edit', $product) : '#' }}" wire:navigate
-                       class="block text-center rounded-lg bg-gray-100 dark:bg-gray-700 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-200">
-                        Manage
-                    </a>
+                    <div class="grid {{ auth()->user()->hasRole('Shop Admin') ? 'grid-cols-2' : 'grid-cols-1' }} gap-2">
+                        <a href="{{ \Illuminate\Support\Facades\Route::has('tenant.products.edit') ? route('tenant.products.edit', $product) : '#' }}" wire:navigate
+                           class="block text-center rounded-lg bg-gray-100 dark:bg-gray-700 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-200">
+                            Manage
+                        </a>
+                        @if (auth()->user()->hasRole('Shop Admin'))
+                            <a href="{{ route('tenant.products.items', $product) }}" wire:navigate
+                               class="block text-center rounded-lg bg-gray-100 dark:bg-gray-700 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-200">
+                                View Items
+                            </a>
+                        @endif
+                    </div>
                 </div>
             @empty
                 <div class="col-span-full rounded-2xl border border-dashed border-gray-300 dark:border-gray-700 p-10 text-center text-gray-400">

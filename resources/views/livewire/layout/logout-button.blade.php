@@ -12,7 +12,7 @@ new class extends Component
         request()->session()->invalidate();
         request()->session()->regenerateToken();
 
-        $this->redirect(route('landing'), navigate: false);
+        $this->redirect(route('superadmin.login'), navigate: false);
     }
 } ?>
 

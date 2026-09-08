@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\CollectionBookPrintController;
 use App\Http\Controllers\ThermalReceiptController;
+use App\Models\Shop;
 use Illuminate\Support\Facades\Route;
 use Livewire\Volt\Volt;
 
@@ -66,6 +67,7 @@ Route::middleware(['auth', 'tenant.resolve'])
         Volt::route('products', 'products.index')->name('products.index');
         Volt::route('products/create', 'products.form')->name('products.create');
         Volt::route('products/{product}/edit', 'products.form')->name('products.edit');
+        Volt::route('products/{product}/items', 'products.items')->name('products.items');
 
         Volt::route('purchase-orders', 'purchase-orders.index')->name('purchase-orders.index');
         Volt::route('purchase-orders/create', 'purchase-orders.form')->name('purchase-orders.create');
@@ -98,3 +100,18 @@ Route::middleware(['auth', 'tenant.resolve'])
     });
 
 require __DIR__.'/auth.php';
+
+// Catch-all for a bare shop URL (e.g. /united-electronics, no /s/ prefix and
+// no /login suffix) — registered last so every real static route above
+// (dashboard, profile, confirm-password, etc.) still wins first. {shop}
+// resolves via the global Route::bind in AppServiceProvider and 404s on its
+// own if the slug doesn't exist, same as every other {shop} route.
+Route::get('{shop}', function (Shop $shop) {
+    $user = auth()->user();
+
+    if ($user && ($user->hasRole('Super Admin') || $user->shop_id === $shop->id)) {
+        return redirect()->route('tenant.dashboard', $shop);
+    }
+
+    return redirect()->route('login', ['shop' => $shop]);
+})->name('shop.entry');
