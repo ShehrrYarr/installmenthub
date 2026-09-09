@@ -25,6 +25,7 @@ class Shop extends Model
         'subscription_status',
         'billing_cycle',
         'monthly_fee',
+        'annual_fee',
         'trial_ends_at',
         'subscription_started_at',
         'next_billing_date',
@@ -48,6 +49,7 @@ class Shop extends Model
             'next_billing_date' => 'date',
             'suspended_at' => 'datetime',
             'monthly_fee' => 'decimal:2',
+            'annual_fee' => 'decimal:2',
             'default_interest_rate' => 'decimal:2',
             'default_processing_fee' => 'decimal:2',
             'penalty_rate' => 'decimal:2',
@@ -72,6 +74,33 @@ class Shop extends Model
     public function users(): HasMany
     {
         return $this->hasMany(User::class);
+    }
+
+    public function subscriptionPayments(): HasMany
+    {
+        return $this->hasMany(ShopSubscriptionPayment::class);
+    }
+
+    /**
+     * The subscription year a payment made right now would buy.
+     *
+     * The anniversary is fixed: a new year always starts where the last one
+     * ended, so paying late costs the shop the lapsed time rather than
+     * pushing the renewal date later. If a shop lapsed for more than a year,
+     * whole years are rolled forward so the period being paid for is the
+     * current one — otherwise it would expire again the moment it reopened.
+     *
+     * @return array{0: \Illuminate\Support\Carbon, 1: \Illuminate\Support\Carbon}
+     */
+    public function nextSubscriptionPeriod(): array
+    {
+        $start = $this->next_billing_date?->copy() ?? today();
+
+        while ($start->copy()->addYear()->isPast()) {
+            $start->addYear();
+        }
+
+        return [$start, $start->copy()->addYear()];
     }
 
     public function vendors(): HasMany
