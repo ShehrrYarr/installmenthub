@@ -20,6 +20,7 @@ class CustomerLedgerEntry extends Model
         'type',
         'amount',
         'payment_mode',
+        'bank_id',
         'running_balance',
         'reference_type',
         'reference_id',
@@ -71,9 +72,12 @@ class CustomerLedgerEntry extends Model
     /** This entry's own payment_mode (manual entries), or the mode of the Payment it's linked to (e.g. a down payment or installment collection). */
     public function paymentModeLabel(): ?string
     {
-        $mode = $this->payment_mode ?? ($this->reference_type === Payment::class ? $this->reference?->payment_mode : null);
+        $linkedPayment = $this->reference_type === Payment::class ? $this->reference : null;
 
-        return $mode ? ucfirst($mode) : null;
+        return \App\Support\PaymentMethod::label(
+            $this->payment_mode ?? $linkedPayment?->payment_mode,
+            $this->bank ?? $linkedPayment?->bank,
+        );
     }
 
     /**
@@ -99,5 +103,10 @@ class CustomerLedgerEntry extends Model
                     $entry->update(['running_balance' => $running]);
                 }
             });
+    }
+
+    public function bank(): BelongsTo
+    {
+        return $this->belongsTo(Bank::class);
     }
 }

@@ -21,6 +21,7 @@ class Expense extends Model
         'expense_date',
         'description',
         'payment_mode',
+        'bank_id',
         'created_by',
     ];
 
@@ -35,5 +36,10 @@ class Expense extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function bank(): BelongsTo
+    {
+        return $this->belongsTo(Bank::class);
     }
 }

@@ -12,6 +12,7 @@ use App\Models\ProductSerial;
 use App\Models\PurchaseOrderItem;
 use App\Models\User;
 use App\Support\EmiCalculator;
+use App\Support\PaymentMethod;
 use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Validate;
@@ -41,8 +42,9 @@ new #[Layout('layouts.tenant')] class extends Component
     #[Validate('required|numeric|min:0')]
     public string $downPaymentValue = '20';
 
-    #[Validate('required|in:cash,bank,easypaisa,jazzcash,other')]
-    public string $downPaymentMode = 'cash';
+    public string $downPaymentMode = PaymentMethod::CASH;
+
+    public ?int $downPaymentBankId = null;
 
     #[Validate('required|numeric|min:0')]
     public string $interestRate = '12';
@@ -264,6 +266,10 @@ new #[Layout('layouts.tenant')] class extends Component
     public function save(): void
     {
         $this->validate();
+        $this->validate([
+            'downPaymentMode' => PaymentMethod::methodRule(),
+            'downPaymentBankId' => PaymentMethod::bankRule('downPaymentMode'),
+        ], PaymentMethod::bankMessages('downPaymentBankId'));
 
         if ($this->guarantor2Provided()) {
             $this->validate([
@@ -324,7 +330,9 @@ new #[Layout('layouts.tenant')] class extends Component
             return;
         }
 
-        $agreement = DB::transaction(function () {
+        [$downPaymentMode, $downPaymentBankId] = PaymentMethod::toStorage($this->downPaymentMode, $this->downPaymentBankId);
+
+        $agreement = DB::transaction(function () use ($downPaymentMode, $downPaymentBankId) {
             $calculator = $this->calculator;
             $schedule = $calculator->schedule($this->startDate);
 
@@ -412,7 +420,8 @@ new #[Layout('layouts.tenant')] class extends Component
                     'installment_schedule_id' => null,
                     'customer_id' => $this->customer_id,
                     'amount' => $this->downPaymentAmount,
-                    'payment_mode' => $this->downPaymentMode,
+                    'payment_mode' => $downPaymentMode,
+                    'bank_id' => $downPaymentBankId,
                     'received_by' => auth()->id(),
                     'receipt_number' => 'RCP-'.$agreement->shop_id.'-'.now()->format('ymd').'-'.random_int(1000, 9999),
                     'paid_at' => now(),
@@ -424,7 +433,8 @@ new #[Layout('layouts.tenant')] class extends Component
                     'agreement_id' => $agreement->id,
                     'type' => 'credit',
                     'amount' => $this->downPaymentAmount,
-                    'payment_mode' => $this->downPaymentMode,
+                    'payment_mode' => $downPaymentMode,
+                    'bank_id' => $downPaymentBankId,
                     'running_balance' => '0.00',
                     'reference_type' => Payment::class,
                     'reference_id' => $downPayment->id,
@@ -535,16 +545,7 @@ new #[Layout('layouts.tenant')] class extends Component
                         <p class="mt-1 text-xs text-gray-400">≈ Rs. {{ number_format((float) $this->downPaymentAmount, 0) }}</p>
                         <x-input-error :messages="$errors->get('downPaymentValue')" class="mt-1" />
                     </div>
-                    <div>
-                        <x-input-label value="Down Payment Method" />
-                        <select wire:model="downPaymentMode" class="mt-1 block w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-900 shadow-sm focus:border-walnut-400 focus:ring-walnut-400">
-                            <option value="cash">Cash</option>
-                            <option value="bank">Bank Transfer</option>
-                            <option value="easypaisa">EasyPaisa</option>
-                            <option value="jazzcash">JazzCash</option>
-                            <option value="other">Other</option>
-                        </select>
-                    </div>
+                    <x-payment-method-select method-model="downPaymentMode" bank-model="downPaymentBankId" label="Down Payment Method" />
                     <div>
                         <x-input-label for="interestRate" value="Interest Rate (annual %)" />
                         <x-text-input id="interestRate" type="number" step="0.01" wire:model.live="interestRate" class="mt-1 block w-full" />

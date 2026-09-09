@@ -3,6 +3,8 @@
 use App\Models\Customer;
 use App\Models\CustomerLedgerEntry;
 use App\Models\CustomerLedgerEntryRevision;
+use App\Models\Payment;
+use App\Support\PaymentMethod;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Validate;
@@ -26,8 +28,9 @@ new #[Layout('layouts.tenant')] class extends Component
     #[Validate('required|integer|min:1')]
     public string $entryAmount = '';
 
-    #[Validate('required|in:cash,bank,easypaisa,jazzcash,other')]
-    public string $entryPaymentMode = 'cash';
+    public string $entryPaymentMode = PaymentMethod::CASH;
+
+    public ?int $entryBankId = null;
 
     #[Validate('required|date|before_or_equal:today')]
     public string $entryDate = '';
@@ -66,7 +69,7 @@ new #[Layout('layouts.tenant')] class extends Component
         // entryAmount validates as `integer` — the decimal-cast attribute
         // (e.g. "50000.00") fails that rule unless normalized first.
         $this->entryAmount = (string) (int) $entry->amount;
-        $this->entryPaymentMode = $entry->payment_mode ?? 'cash';
+        [$this->entryPaymentMode, $this->entryBankId] = PaymentMethod::forForm($entry->payment_mode, $entry->bank_id);
         $this->entryDate = $entry->entry_date->toDateString();
         $this->entryDescription = (string) $entry->description;
         $this->entryAgreementId = $entry->agreement_id;
@@ -92,7 +95,13 @@ new #[Layout('layouts.tenant')] class extends Component
             return;
         }
 
+        $this->validate([
+            'entryPaymentMode' => PaymentMethod::methodRule(),
+            'entryBankId' => PaymentMethod::bankRule('entryPaymentMode'),
+        ], PaymentMethod::bankMessages('entryBankId'));
+
         $type = $this->entryDirection === 'cash_in' ? 'credit' : 'debit';
+        [$paymentMode, $bankId] = PaymentMethod::toStorage($this->entryPaymentMode, $this->entryBankId);
 
         if ($this->editingEntryId) {
             $entry = CustomerLedgerEntry::where('customer_id', $this->customer->id)->findOrFail($this->editingEntryId);
@@ -103,6 +112,7 @@ new #[Layout('layouts.tenant')] class extends Component
                 'type' => $entry->type,
                 'amount' => $entry->amount,
                 'payment_mode' => $entry->payment_mode,
+                'bank_id' => $entry->bank_id,
                 'agreement_id' => $entry->agreement_id,
                 'description' => $entry->description,
                 'entry_date' => $entry->entry_date,
@@ -113,7 +123,8 @@ new #[Layout('layouts.tenant')] class extends Component
                 'agreement_id' => $this->entryAgreementId,
                 'type' => $type,
                 'amount' => $this->entryAmount,
-                'payment_mode' => $this->entryPaymentMode,
+                'payment_mode' => $paymentMode,
+                'bank_id' => $bankId,
                 'description' => $this->entryDescription,
                 'entry_date' => $this->entryDate,
             ]);
@@ -125,7 +136,8 @@ new #[Layout('layouts.tenant')] class extends Component
                 'agreement_id' => $this->entryAgreementId,
                 'type' => $type,
                 'amount' => $this->entryAmount,
-                'payment_mode' => $this->entryPaymentMode,
+                'payment_mode' => $paymentMode,
+                'bank_id' => $bankId,
                 'running_balance' => '0.00',
                 'reference_type' => null,
                 'reference_id' => null,
@@ -149,7 +161,8 @@ new #[Layout('layouts.tenant')] class extends Component
     {
         $this->reset(['entryAmount', 'entryDescription', 'entryAgreementId']);
         $this->entryDirection = 'cash_in';
-        $this->entryPaymentMode = 'cash';
+        $this->entryPaymentMode = PaymentMethod::CASH;
+        $this->entryBankId = null;
         $this->entryDate = now()->toDateString();
     }
 
@@ -163,7 +176,16 @@ new #[Layout('layouts.tenant')] class extends Component
     public function entries()
     {
         return $this->customer->ledgerEntries()
-            ->with(['revisions.editor', 'reference'])
+            ->with([
+                'revisions.editor',
+                'revisions.bank',
+                'bank',
+                // `reference` is polymorphic — it points at a Payment for a
+                // collection, but at the Agreement itself for the opening
+                // debit. Only Payment has a bank, so scope the nested load
+                // to it rather than asking every morph target for one.
+                'reference' => fn ($morphTo) => $morphTo->morphWith([Payment::class => ['bank']]),
+            ])
             ->orderBy('entry_date')
             ->orderBy('id')
             ->get();
@@ -276,17 +298,7 @@ new #[Layout('layouts.tenant')] class extends Component
                             <x-text-input type="date" wire:model="entryDate" class="mt-1 block w-full" />
                             <x-input-error :messages="$errors->get('entryDate')" class="mt-1" />
                         </div>
-                        <div>
-                            <x-input-label value="Payment Method" />
-                            <select wire:model="entryPaymentMode" class="mt-1 block w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-900 shadow-sm focus:border-walnut-400 focus:ring-walnut-400">
-                                <option value="cash">Cash</option>
-                                <option value="bank">Bank Transfer</option>
-                                <option value="easypaisa">EasyPaisa</option>
-                                <option value="jazzcash">JazzCash</option>
-                                <option value="other">Other</option>
-                            </select>
-                            <x-input-error :messages="$errors->get('entryPaymentMode')" class="mt-1" />
-                        </div>
+                        <x-payment-method-select method-model="entryPaymentMode" bank-model="entryBankId" class="sm:col-span-2" />
                         <div class="sm:col-span-2">
                             <x-input-label value="Description" />
                             <x-text-input wire:model="entryDescription" placeholder="e.g. Cash collected before switching to this system" class="mt-1 block w-full" />
@@ -373,7 +385,7 @@ new #[Layout('layouts.tenant')] class extends Component
                                                     <span class="ml-auto">
                                                         Previously: {{ $revision->type === 'debit' ? 'Cash Out' : 'Cash In' }} of
                                                         Rs. {{ number_format((float) $revision->amount, 0) }}
-                                                        @if ($revision->payment_mode) ({{ ucfirst($revision->payment_mode) }}) @endif
+                                                        @if ($revision->payment_mode) ({{ \App\Support\PaymentMethod::label($revision->payment_mode, $revision->bank) }}) @endif
                                                         on {{ $revision->entry_date->format('d M Y') }} — "{{ $revision->description }}"
                                                     </span>
                                                 </div>
@@ -383,7 +395,7 @@ new #[Layout('layouts.tenant')] class extends Component
                                                 <span class="ml-auto">
                                                     Currently: {{ $entry->type === 'debit' ? 'Cash Out' : 'Cash In' }} of
                                                     Rs. {{ number_format((float) $entry->amount, 0) }}
-                                                    @if ($entry->payment_mode) ({{ ucfirst($entry->payment_mode) }}) @endif
+                                                    @if ($entry->payment_mode) ({{ $entry->paymentModeLabel() }}) @endif
                                                     on {{ $entry->entry_date->format('d M Y') }} — "{{ $entry->description }}"
                                                 </span>
                                             </div>

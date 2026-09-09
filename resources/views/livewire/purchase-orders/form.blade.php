@@ -3,6 +3,7 @@
 use App\Models\Product;
 use App\Models\PurchaseOrder;
 use App\Models\Vendor;
+use App\Support\PaymentMethod;
 use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Validate;
@@ -20,8 +21,9 @@ new #[Layout('layouts.tenant')] class extends Component
     #[Validate('required|date')]
     public string $order_date = '';
 
-    #[Validate('required|in:cash,bank,credit')]
-    public string $payment_mode = 'cash';
+    public string $payment_mode = PaymentMethod::CASH;
+
+    public ?int $bankId = null;
 
     public string $notes = '';
 
@@ -151,6 +153,10 @@ new #[Layout('layouts.tenant')] class extends Component
     {
         $this->validate();
         $this->validate($this->itemRules(), $this->itemMessages());
+        $this->validate([
+            'payment_mode' => PaymentMethod::methodRule(withCredit: true),
+            'bankId' => PaymentMethod::bankRule('payment_mode'),
+        ], PaymentMethod::bankMessages('bankId'));
 
         // `exists:products,id` (and the vendor_id rule above) run a plain DB
         // query that bypasses ShopScope, so they'd accept another shop's
@@ -169,7 +175,9 @@ new #[Layout('layouts.tenant')] class extends Component
             return;
         }
 
-        $order = DB::transaction(function () {
+        [$paymentMode, $bankId] = PaymentMethod::toStorage($this->payment_mode, $this->bankId);
+
+        $order = DB::transaction(function () use ($paymentMode, $bankId) {
             $total = $this->total;
 
             $order = PurchaseOrder::create([
@@ -177,7 +185,8 @@ new #[Layout('layouts.tenant')] class extends Component
                 'po_number' => 'PO-'.now()->format('ymd').'-'.random_int(1000, 9999),
                 'invoice_number' => $this->invoice_number,
                 'order_date' => $this->order_date,
-                'payment_mode' => $this->payment_mode,
+                'payment_mode' => $paymentMode,
+                'bank_id' => $bankId,
                 'status' => 'draft',
                 'subtotal' => $total,
                 'total_amount' => $total,
@@ -234,15 +243,7 @@ new #[Layout('layouts.tenant')] class extends Component
                         class="mt-1 block w-full {{ $errors->has('order_date') ? 'border-rose-500 focus:border-rose-500 focus:ring-rose-500' : '' }}" />
                     <x-input-error :messages="$errors->get('order_date')" class="mt-1" />
                 </div>
-                <div>
-                    <x-input-label for="payment_mode" value="Payment Mode" />
-                    <select id="payment_mode" wire:model="payment_mode" class="mt-1 block w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-900 shadow-sm focus:border-walnut-400 focus:ring-walnut-400">
-                        <option value="cash">Cash</option>
-                        <option value="bank">Bank</option>
-                        <option value="credit">Credit</option>
-                    </select>
-                    <x-input-error :messages="$errors->get('payment_mode')" class="mt-1" />
-                </div>
+                <x-payment-method-select method-model="payment_mode" bank-model="bankId" label="Payment Mode" :with-credit="true" />
                 <div class="lg:col-span-3">
                     <x-input-label for="notes" value="Notes" />
                     <x-text-input id="notes" wire:model="notes" class="mt-1 block w-full" />

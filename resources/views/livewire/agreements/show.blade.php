@@ -18,7 +18,7 @@ new #[Layout('layouts.tenant')] class extends Component
             'items.productSerial.purchaseOrderItem.purchaseOrder.vendor',
             'items.purchaseOrderItem.purchaseOrder.vendor',
             'schedules' => fn ($q) => $q->orderBy('installment_number'),
-            'payments' => fn ($q) => $q->latest('paid_at'),
+            'payments' => fn ($q) => $q->with('bank')->latest('paid_at'),
         ]);
     }
 
@@ -176,7 +176,7 @@ new #[Layout('layouts.tenant')] class extends Component
                             <div class="flex items-center justify-between text-sm rounded-lg bg-gray-50 dark:bg-gray-900/40 px-3 py-2">
                                 <span class="text-gray-500">
                                     {{ $payment->paid_at->format('d M Y, h:i A') }} · {{ $payment->receipt_number }}
-                                    · {{ ucfirst($payment->payment_mode) }}
+                                    · {{ \App\Support\PaymentMethod::label($payment->payment_mode, $payment->bank) }}
                                     @if (is_null($payment->installment_schedule_id))
                                         <span class="ml-1 inline-flex items-center rounded-full bg-sky-100 dark:bg-sky-900/40 px-2 py-0.5 text-xs font-medium text-sky-700 dark:text-sky-300">Down Payment</span>
                                     @endif
@@ -200,7 +200,7 @@ new #[Layout('layouts.tenant')] class extends Component
                             <dd class="text-walnut-900 dark:text-walnut-200">
                                 Rs. {{ number_format((float) $agreement->down_payment, 0) }}
                                 @if ($this->downPaymentReceipt)
-                                    <span class="text-xs text-walnut-600/70 dark:text-walnut-200/70">({{ ucfirst($this->downPaymentReceipt->payment_mode) }})</span>
+                                    <span class="text-xs text-walnut-600/70 dark:text-walnut-200/70">({{ \App\Support\PaymentMethod::label($this->downPaymentReceipt->payment_mode, $this->downPaymentReceipt->bank) }})</span>
                                 @endif
                             </dd>
                         </div>

@@ -19,6 +19,7 @@ class VendorLedgerEntry extends Model
         'type',
         'amount',
         'payment_mode',
+        'bank_id',
         'running_balance',
         'reference_type',
         'reference_id',
@@ -71,7 +72,7 @@ class VendorLedgerEntry extends Model
 
     public function paymentModeLabel(): ?string
     {
-        return $this->payment_mode ? ucfirst($this->payment_mode) : null;
+        return \App\Support\PaymentMethod::label($this->payment_mode, $this->bank);
     }
 
     /**
@@ -98,5 +99,10 @@ class VendorLedgerEntry extends Model
                     $entry->update(['running_balance' => $running]);
                 }
             });
+    }
+
+    public function bank(): BelongsTo
+    {
+        return $this->belongsTo(Bank::class);
     }
 }

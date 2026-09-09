@@ -20,6 +20,7 @@ class PurchaseOrder extends Model
         'invoice_number',
         'order_date',
         'payment_mode',
+        'bank_id',
         'status',
         'subtotal',
         'tax_amount',
@@ -53,5 +54,10 @@ class PurchaseOrder extends Model
     public function items(): HasMany
     {
         return $this->hasMany(PurchaseOrderItem::class);
+    }
+
+    public function bank(): BelongsTo
+    {
+        return $this->belongsTo(Bank::class);
     }
 }

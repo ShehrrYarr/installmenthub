@@ -3,6 +3,7 @@
 use App\Models\Agreement;
 use App\Models\CustomerLedgerEntry;
 use App\Models\Payment;
+use App\Support\PaymentMethod;
 use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Url;
@@ -16,7 +17,9 @@ new #[Layout('layouts.tenant')] class extends Component
 
     public string $amount = '';
 
-    public string $paymentMode = 'cash';
+    public string $paymentMode = PaymentMethod::CASH;
+
+    public ?int $bankId = null;
 
     public string $referenceNumber = '';
 
@@ -109,8 +112,9 @@ new #[Layout('layouts.tenant')] class extends Component
     {
         $this->validate([
             'amount' => 'required|numeric|min:0.01',
-            'paymentMode' => 'required|in:cash,bank,easypaisa,jazzcash,other',
-        ]);
+            'paymentMode' => PaymentMethod::methodRule(),
+            'bankId' => PaymentMethod::bankRule('paymentMode'),
+        ], PaymentMethod::bankMessages('bankId'));
 
         $agreement = $this->selectedAgreement;
 
@@ -131,7 +135,9 @@ new #[Layout('layouts.tenant')] class extends Component
             return;
         }
 
-        $payment = DB::transaction(function () use ($agreement) {
+        [$paymentMode, $bankId] = PaymentMethod::toStorage($this->paymentMode, $this->bankId);
+
+        $payment = DB::transaction(function () use ($agreement, $paymentMode, $bankId) {
             $remaining = $this->amount;
 
             $schedules = $agreement->schedules()
@@ -146,7 +152,8 @@ new #[Layout('layouts.tenant')] class extends Component
                 'installment_schedule_id' => $firstSchedule?->id,
                 'customer_id' => $agreement->customer_id,
                 'amount' => $this->amount,
-                'payment_mode' => $this->paymentMode,
+                'payment_mode' => $paymentMode,
+                'bank_id' => $bankId,
                 'reference_number' => $this->referenceNumber ?: null,
                 'received_by' => auth()->id(),
                 'receipt_number' => 'RCP-'.$agreement->shop_id.'-'.now()->format('ymd').'-'.random_int(1000, 9999),
@@ -282,16 +289,7 @@ new #[Layout('layouts.tenant')] class extends Component
                             <x-text-input id="amount" type="number" step="0.01" wire:model="amount" class="mt-1 block w-full" />
                             <x-input-error :messages="$errors->get('amount')" class="mt-1" />
                         </div>
-                        <div>
-                            <x-input-label for="paymentMode" value="Payment Mode" />
-                            <select id="paymentMode" wire:model="paymentMode" class="mt-1 block w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-900 shadow-sm focus:border-walnut-400 focus:ring-walnut-400">
-                                <option value="cash">Cash</option>
-                                <option value="bank">Bank Transfer</option>
-                                <option value="easypaisa">EasyPaisa</option>
-                                <option value="jazzcash">JazzCash</option>
-                                <option value="other">Other</option>
-                            </select>
-                        </div>
+                        <x-payment-method-select method-model="paymentMode" bank-model="bankId" label="Payment Mode" />
                         <div>
                             <x-input-label for="referenceNumber" value="Reference # (optional)" />
                             <x-text-input id="referenceNumber" wire:model="referenceNumber" class="mt-1 block w-full" />

@@ -19,6 +19,7 @@ class Payment extends Model
         'customer_id',
         'amount',
         'payment_mode',
+        'bank_id',
         'reference_number',
         'received_by',
         'receipt_number',
@@ -52,5 +53,10 @@ class Payment extends Model
     public function receiver(): BelongsTo
     {
         return $this->belongsTo(User::class, 'received_by');
+    }
+
+    public function bank(): BelongsTo
+    {
+        return $this->belongsTo(Bank::class);
     }
 }

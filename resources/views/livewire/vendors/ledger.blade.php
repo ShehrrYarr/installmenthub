@@ -5,6 +5,7 @@ use App\Models\PurchaseOrderItem;
 use App\Models\Vendor;
 use App\Models\VendorLedgerEntry;
 use App\Models\VendorLedgerEntryRevision;
+use App\Support\PaymentMethod;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Validate;
@@ -35,8 +36,9 @@ new #[Layout('layouts.tenant')] class extends Component
     #[Validate('required|integer|min:1')]
     public string $entryAmount = '';
 
-    #[Validate('required|in:cash,bank,easypaisa,jazzcash,other')]
-    public string $entryPaymentMode = 'cash';
+    public string $entryPaymentMode = PaymentMethod::CASH;
+
+    public ?int $entryBankId = null;
 
     #[Validate('required|date|before_or_equal:today')]
     public string $entryDate = '';
@@ -75,7 +77,7 @@ new #[Layout('layouts.tenant')] class extends Component
         // entryAmount validates as `integer` — the decimal-cast attribute
         // (e.g. "50000.00") fails that rule unless normalized first.
         $this->entryAmount = (string) (int) $entry->amount;
-        $this->entryPaymentMode = $entry->payment_mode ?? 'cash';
+        [$this->entryPaymentMode, $this->entryBankId] = PaymentMethod::forForm($entry->payment_mode, $entry->bank_id);
         $this->entryDate = $entry->entry_date->toDateString();
         $this->entryDescription = (string) $entry->description;
         $this->entryPurchaseOrderId = $entry->purchase_order_id;
@@ -118,6 +120,12 @@ new #[Layout('layouts.tenant')] class extends Component
         abort_unless(auth()->user()->hasRole('Shop Admin'), 403);
 
         $this->validate();
+        $this->validate([
+            'entryPaymentMode' => PaymentMethod::methodRule(),
+            'entryBankId' => PaymentMethod::bankRule('entryPaymentMode'),
+        ], PaymentMethod::bankMessages('entryBankId'));
+
+        [$paymentMode, $bankId] = PaymentMethod::toStorage($this->entryPaymentMode, $this->entryBankId);
 
         if ($this->entryPurchaseOrderId && ! $this->purchaseOrders->contains('id', $this->entryPurchaseOrderId)) {
             $this->addError('entryPurchaseOrderId', 'That purchase order does not belong to this vendor.');
@@ -134,6 +142,7 @@ new #[Layout('layouts.tenant')] class extends Component
                 'type' => $entry->type,
                 'amount' => $entry->amount,
                 'payment_mode' => $entry->payment_mode,
+                'bank_id' => $entry->bank_id,
                 'purchase_order_id' => $entry->purchase_order_id,
                 'manual_direction' => $entry->manual_direction,
                 'description' => $entry->description,
@@ -148,7 +157,8 @@ new #[Layout('layouts.tenant')] class extends Component
             $entry->update([
                 'type' => 'credit',
                 'amount' => $this->entryAmount,
-                'payment_mode' => $this->entryPaymentMode,
+                'payment_mode' => $paymentMode,
+                'bank_id' => $bankId,
                 'purchase_order_id' => $this->entryPurchaseOrderId,
                 'manual_direction' => $this->entryDirection,
                 'description' => $this->entryDescription,
@@ -161,7 +171,8 @@ new #[Layout('layouts.tenant')] class extends Component
                 'vendor_id' => $this->vendor->id,
                 'type' => 'credit',
                 'amount' => $this->entryAmount,
-                'payment_mode' => $this->entryPaymentMode,
+                'payment_mode' => $paymentMode,
+                'bank_id' => $bankId,
                 'running_balance' => '0.00',
                 'reference_type' => null,
                 'reference_id' => null,
@@ -189,7 +200,8 @@ new #[Layout('layouts.tenant')] class extends Component
     {
         $this->reset(['entryAmount', 'entryDescription', 'entryPurchaseOrderId']);
         $this->entryDirection = 'cash_out';
-        $this->entryPaymentMode = 'cash';
+        $this->entryPaymentMode = PaymentMethod::CASH;
+        $this->entryBankId = null;
         $this->entryDate = now()->toDateString();
     }
 
@@ -242,7 +254,7 @@ new #[Layout('layouts.tenant')] class extends Component
     public function entries()
     {
         return $this->vendor->ledgerEntries()
-            ->with(['revisions.editor', 'reference', 'purchaseOrder'])
+            ->with(['revisions.editor', 'revisions.bank', 'reference', 'purchaseOrder', 'bank'])
             ->orderBy('entry_date')
             ->orderBy('id')
             ->get();
@@ -378,17 +390,7 @@ new #[Layout('layouts.tenant')] class extends Component
                             <x-text-input type="date" wire:model="entryDate" class="mt-1 block w-full" />
                             <x-input-error :messages="$errors->get('entryDate')" class="mt-1" />
                         </div>
-                        <div>
-                            <x-input-label value="Payment Method" />
-                            <select wire:model="entryPaymentMode" class="mt-1 block w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-900 shadow-sm focus:border-walnut-400 focus:ring-walnut-400">
-                                <option value="cash">Cash</option>
-                                <option value="bank">Bank Transfer</option>
-                                <option value="easypaisa">EasyPaisa</option>
-                                <option value="jazzcash">JazzCash</option>
-                                <option value="other">Other</option>
-                            </select>
-                            <x-input-error :messages="$errors->get('entryPaymentMode')" class="mt-1" />
-                        </div>
+                        <x-payment-method-select method-model="entryPaymentMode" bank-model="entryBankId" class="sm:col-span-2" />
                         <div class="sm:col-span-2">
                             <x-input-label value="Description" />
                             <x-text-input wire:model="entryDescription" placeholder="e.g. Paid off PO-260906-1234 balance" class="mt-1 block w-full" />
@@ -479,7 +481,7 @@ new #[Layout('layouts.tenant')] class extends Component
                                                     <span class="ml-auto">
                                                         Previously: {{ $revision->manual_direction === 'cash_in' ? 'Cash In' : 'Cash Out' }} of
                                                         Rs. {{ number_format((float) $revision->amount, 0) }}
-                                                        @if ($revision->payment_mode) ({{ ucfirst($revision->payment_mode) }}) @endif
+                                                        @if ($revision->payment_mode) ({{ \App\Support\PaymentMethod::label($revision->payment_mode, $revision->bank) }}) @endif
                                                         on {{ $revision->entry_date->format('d M Y') }} — "{{ $revision->description }}"
                                                     </span>
                                                 </div>
@@ -489,7 +491,7 @@ new #[Layout('layouts.tenant')] class extends Component
                                                 <span class="ml-auto">
                                                     Currently: {{ $entry->manual_direction === 'cash_in' ? 'Cash In' : 'Cash Out' }} of
                                                     Rs. {{ number_format((float) $entry->amount, 0) }}
-                                                    @if ($entry->payment_mode) ({{ ucfirst($entry->payment_mode) }}) @endif
+                                                    @if ($entry->payment_mode) ({{ $entry->paymentModeLabel() }}) @endif
                                                     on {{ $entry->entry_date->format('d M Y') }} — "{{ $entry->description }}"
                                                 </span>
                                             </div>

@@ -65,7 +65,7 @@
         </div>
 
         <div class="py-2 border-b border-dashed border-black space-y-1">
-            <div class="flex justify-between"><span>Payment Mode</span><span class="uppercase">{{ str_replace('_', ' ', $payment->payment_mode) }}</span></div>
+            <div class="flex justify-between"><span>Payment Mode</span><span class="uppercase">{{ \App\Support\PaymentMethod::label($payment->payment_mode, $payment->bank) }}</span></div>
             @if ($payment->reference_number)
                 <div class="flex justify-between"><span>Reference</span><span>{{ $payment->reference_number }}</span></div>
             @endif

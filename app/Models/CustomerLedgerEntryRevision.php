@@ -16,6 +16,7 @@ class CustomerLedgerEntryRevision extends Model
         'type',
         'amount',
         'payment_mode',
+        'bank_id',
         'agreement_id',
         'description',
         'entry_date',
@@ -43,5 +44,10 @@ class CustomerLedgerEntryRevision extends Model
     public function editor(): BelongsTo
     {
         return $this->belongsTo(User::class, 'edited_by');
+    }
+
+    public function bank(): BelongsTo
+    {
+        return $this->belongsTo(Bank::class);
     }
 }

@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Expense;
+use App\Support\PaymentMethod;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Validate;
 use Livewire\Volt\Component;
@@ -20,8 +21,9 @@ new #[Layout('layouts.tenant')] class extends Component
 
     public string $description = '';
 
-    #[Validate('required|in:cash,bank,easypaisa,jazzcash,other')]
-    public string $payment_mode = 'cash';
+    public string $paymentMethod = PaymentMethod::CASH;
+
+    public ?int $bankId = null;
 
     public function mount(?Expense $expense = null): void
     {
@@ -37,7 +39,7 @@ new #[Layout('layouts.tenant')] class extends Component
             $this->amount = (string) $expense->amount;
             $this->expense_date = $expense->expense_date->toDateString();
             $this->description = $expense->description ?? '';
-            $this->payment_mode = $expense->payment_mode;
+            [$this->paymentMethod, $this->bankId] = PaymentMethod::forForm($expense->payment_mode, $expense->bank_id);
         } else {
             $this->expense_date = now()->toDateString();
         }
@@ -46,13 +48,20 @@ new #[Layout('layouts.tenant')] class extends Component
     public function save(): void
     {
         $this->validate();
+        $this->validate([
+            'paymentMethod' => PaymentMethod::methodRule(),
+            'bankId' => PaymentMethod::bankRule('paymentMethod'),
+        ], PaymentMethod::bankMessages('bankId'));
+
+        [$paymentMode, $bankId] = PaymentMethod::toStorage($this->paymentMethod, $this->bankId);
 
         $data = [
             'category' => $this->category,
             'amount' => $this->amount,
             'expense_date' => $this->expense_date,
             'description' => $this->description ?: null,
-            'payment_mode' => $this->payment_mode,
+            'payment_mode' => $paymentMode,
+            'bank_id' => $bankId,
         ];
 
         if ($this->expense) {
@@ -98,16 +107,7 @@ new #[Layout('layouts.tenant')] class extends Component
                     <x-text-input type="date" wire:model="expense_date" class="mt-1 block w-full" />
                     <x-input-error :messages="$errors->get('expense_date')" class="mt-1" />
                 </div>
-                <div>
-                    <x-input-label value="Payment Mode" />
-                    <select wire:model="payment_mode" class="mt-1 block w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-900 shadow-sm focus:border-walnut-400 focus:ring-walnut-400">
-                        <option value="cash">Cash</option>
-                        <option value="bank">Bank Transfer</option>
-                        <option value="easypaisa">EasyPaisa</option>
-                        <option value="jazzcash">JazzCash</option>
-                        <option value="other">Other</option>
-                    </select>
-                </div>
+                <x-payment-method-select method-model="paymentMethod" bank-model="bankId" label="Payment Mode" class="sm:col-span-2" />
                 <div class="sm:col-span-2">
                     <x-input-label value="Description (optional)" />
                     <x-text-input wire:model="description" placeholder="e.g. September shop rent" class="mt-1 block w-full" />
