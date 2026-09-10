@@ -66,10 +66,12 @@ new #[Layout('layouts.customer')] class extends Component
         <div class="space-y-3">
             @forelse ($this->agreements as $agreement)
                 <a href="{{ route('customer.agreement', ['shop' => $shop, 'agreement' => $agreement]) }}" wire:navigate
-                   class="block rounded-2xl border border-black/5 bg-white p-4 transition hover:border-black/15">
+                   class="group block rounded-2xl border border-black/5 bg-white p-4 shadow-sm transition
+                          hover:-translate-y-0.5 hover:border-[var(--theme-accent)] hover:shadow-lg
+                          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--theme-accent)]">
                     <div class="flex items-start justify-between gap-3">
                         <div class="min-w-0">
-                            <p class="font-medium text-gray-900">{{ $agreement->items->first()?->product->name ?? 'Agreement' }}</p>
+                            <p class="font-medium text-gray-900 transition-colors group-hover:text-[var(--theme-accent)]">{{ $agreement->items->first()?->product->name ?? 'Agreement' }}</p>
                             <p class="mt-0.5 text-xs text-gray-500">{{ $agreement->agreement_number }} · started {{ $agreement->start_date?->format('d M Y') }}</p>
                         </div>
                         <x-status-badge :status="$agreement->status" />
@@ -89,6 +91,18 @@ new #[Layout('layouts.customer')] class extends Component
                             <dd class="font-medium text-gray-900">Rs. {{ number_format((float) $agreement->outstandingBalance(), 0) }}</dd>
                         </div>
                     </dl>
+
+                    {{-- Spelled out, because the card on its own did not read as
+                         something you could tap. --}}
+                    <div class="mt-4 flex items-center justify-between gap-2 border-t border-dashed border-gray-200 pt-3">
+                        <span class="inline-flex items-center gap-1.5 text-sm font-semibold text-[var(--theme-accent)]">
+                            Click here to view details
+                            <svg class="h-4 w-4 transition-transform group-hover:translate-x-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M5 12h14M13 6l6 6-6 6" />
+                            </svg>
+                        </span>
+                        <span class="hidden text-xs text-gray-400 sm:inline">Schedule &amp; receipts</span>
+                    </div>
                 </a>
             @empty
                 <div class="rounded-2xl border border-dashed border-gray-300 p-8 text-center text-sm text-gray-400">
