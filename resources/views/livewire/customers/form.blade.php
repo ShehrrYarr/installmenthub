@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Customer;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Validate;
 use Livewire\Attributes\Layout;
@@ -12,6 +13,9 @@ new #[Layout('layouts.tenant')] class extends Component
     use WithFileUploads;
 
     public ?Customer $customer = null;
+
+    /** Freshly generated portal password, shown once and never stored in plain text. */
+    public ?string $revealedPortalPassword = null;
 
     #[Validate('required|string|max:100')]
     public string $first_name = '';
@@ -67,6 +71,33 @@ new #[Layout('layouts.tenant')] class extends Component
                 'home_ownership', 'date_of_birth', 'gender', 'notes',
             ]))->map(fn ($value) => $value ?? '')->all());
         }
+    }
+
+    /**
+     * Gives this customer access to the portal, or replaces the password if
+     * they already had one. Generated rather than typed so staff can't set a
+     * weak one, and revealed once — only the hash is ever stored.
+     */
+    public function generatePortalPassword(): void
+    {
+        abort_unless(auth()->user()->hasRole('Shop Admin'), 403);
+        abort_unless($this->customer?->exists, 404);
+
+        $password = Str::password(10, symbols: false);
+
+        $this->customer->update(['password' => $password]);
+        $this->revealedPortalPassword = $password;
+    }
+
+    public function revokePortalAccess(): void
+    {
+        abort_unless(auth()->user()->hasRole('Shop Admin'), 403);
+        abort_unless($this->customer?->exists, 404);
+
+        // A null hash can never match a submitted password, so this both
+        // clears the password and closes the portal for them.
+        $this->customer->update(['password' => null]);
+        $this->revealedPortalPassword = null;
     }
 
     public function save(): void
@@ -231,6 +262,58 @@ new #[Layout('layouts.tenant')] class extends Component
                 label="KYC Documents"
             />
         </div>
+
+        @if (auth()->user()->hasRole('Shop Admin'))
+            <div class="rounded-2xl border border-white/40 dark:border-gray-700/60 bg-white/70 dark:bg-gray-800/60 backdrop-blur-xl shadow-lg shadow-gray-900/5 p-5">
+                <h3 class="font-semibold text-gray-900 dark:text-white">Customer Portal</h3>
+                <p class="mt-1 text-xs text-gray-400">
+                    Lets this customer sign in at
+                    <code class="rounded bg-gray-100 dark:bg-gray-900/60 px-1 py-0.5">{{ url('/'.(\App\Support\Tenant::current()?->slug ?? '').'/customer/login') }}</code>
+                    with their phone number or email to view their agreements and statement.
+                </p>
+
+                @if (! $customer?->exists)
+                    <p class="mt-3 text-sm text-gray-500 dark:text-gray-400">Save the customer first, then you can give them portal access.</p>
+                @else
+                    <div class="mt-3 flex flex-wrap items-center gap-3">
+                        <x-status-badge :status="$customer->password ? 'active' : 'suspended'" />
+                        <span class="text-sm text-gray-500 dark:text-gray-400">
+                            {{ $customer->password ? 'Portal access is on' : 'No portal access yet' }}
+                            @if ($customer->portal_last_login_at)
+                                · last signed in {{ $customer->portal_last_login_at->diffForHumans() }}
+                            @endif
+                        </span>
+
+                        <div class="ml-auto flex items-center gap-3">
+                            <button type="button" wire:click="generatePortalPassword"
+                                wire:confirm="{{ $customer->password ? 'Generate a new password? Their current one stops working immediately.' : 'Give this customer portal access?' }}"
+                                class="rounded-lg bg-walnut-600 px-4 py-2 text-sm font-medium text-white hover:bg-walnut-400">
+                                {{ $customer->password ? 'Reset Password' : 'Enable Portal Access' }}
+                            </button>
+                            @if ($customer->password)
+                                <button type="button" wire:click="revokePortalAccess" wire:confirm="Turn off portal access for this customer?"
+                                    class="text-sm font-medium text-rose-500 hover:text-rose-400">
+                                    Revoke
+                                </button>
+                            @endif
+                        </div>
+                    </div>
+
+                    @if ($revealedPortalPassword)
+                        <div x-data="{ copied: false }" class="mt-3 flex flex-wrap items-center gap-3 rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-3">
+                            <span class="text-xs text-emerald-800">New password — shown once, give it to the customer now:</span>
+                            <code class="select-all font-mono text-sm text-emerald-900">{{ $revealedPortalPassword }}</code>
+                            <button type="button"
+                                @click="navigator.clipboard.writeText('{{ $revealedPortalPassword }}'); copied = true; setTimeout(() => copied = false, 2000)"
+                                class="ml-auto text-xs font-medium text-emerald-700 hover:text-emerald-900">
+                                <span x-show="!copied">Copy</span>
+                                <span x-show="copied" x-cloak>Copied!</span>
+                            </button>
+                        </div>
+                    @endif
+                @endif
+            </div>
+        @endif
 
         <div class="flex items-center gap-3">
             <button type="submit" class="rounded-lg bg-walnut-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-walnut-400" wire:loading.attr="disabled" wire:target="save">

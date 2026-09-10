@@ -40,8 +40,13 @@ class Tenant
     public static function current(): ?Shop
     {
         if (! static::$resolved) {
-            static::$current = static::resolve();
+            // Flagged *before* resolving, not after: resolving can query a
+            // tenant-scoped model (the customer guard loads a Customer), and
+            // ShopScope asks for the tenant on the way through. Marking it
+            // resolved up front makes that nested call return null instead of
+            // recursing forever.
             static::$resolved = true;
+            static::$current = static::resolve();
         }
 
         return static::$current;
@@ -66,7 +71,23 @@ class Tenant
         // requests with no {shop} route param of their own, like the shared
         // POST /livewire/update endpoint every Livewire action goes through.
         $shop = $request->route('shop');
+
+        // Laravel's middleware priority runs Authenticate *before*
+        // SubstituteBindings, so on the very request that triggers this the
+        // {shop} parameter is usually still the raw slug — resolve it by hand
+        // rather than falling through to the landing page.
+        if (is_string($shop)) {
+            $shop = Shop::where('slug', $shop)->first();
+        }
+
         $shop = $shop instanceof Shop ? $shop : static::current();
+
+        // The portal is a separate audience on its own guard — a customer
+        // whose session lapsed belongs back on the customer login, not the
+        // staff one.
+        if ($shop instanceof Shop && str_starts_with((string) $request->route()?->getName(), 'customer.')) {
+            return route('customer.login', ['shop' => $shop]);
+        }
 
         if ($shop instanceof Shop) {
             return route('login', ['shop' => $shop]);
@@ -79,12 +100,30 @@ class Tenant
         return route('landing');
     }
 
+    /** Portal home for the shop in this request's URL, for redirecting a signed-in customer. */
+    public static function portalHomeFor(Request $request): string
+    {
+        $shop = $request->route('shop');
+
+        if (is_string($shop)) {
+            $shop = Shop::where('slug', $shop)->first();
+        }
+
+        return $shop instanceof Shop
+            ? route('customer.agreements', ['shop' => $shop])
+            : route('landing');
+    }
+
     private static function resolve(): ?Shop
     {
         $user = Auth::user();
 
         if (! $user) {
-            return null;
+            // Customer portal requests authenticate on their own guard. This
+            // matters most on the shared /livewire/update endpoint, which
+            // never passes through the portal's tenant middleware — without
+            // it, portal actions would run with no tenant at all.
+            return Auth::guard('customer')->user()?->shop;
         }
 
         if ($user->hasRole('Super Admin')) {

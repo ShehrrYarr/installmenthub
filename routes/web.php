@@ -1,8 +1,10 @@
 <?php
 
 use App\Http\Controllers\CollectionBookPrintController;
+use App\Http\Controllers\CustomerReceiptController;
 use App\Http\Controllers\ThermalReceiptController;
 use App\Models\Shop;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 use Livewire\Volt\Volt;
 
@@ -98,6 +100,31 @@ Route::middleware(['auth', 'tenant.resolve'])
         Volt::route('settings/staff', 'settings.staff')->name('settings.staff');
         Volt::route('settings/banks', 'settings.banks')->name('settings.banks');
         Volt::route('settings/emi', 'settings.emi')->name('settings.emi');
+    });
+
+// Customer portal — /{shop}/customer/*. Read-only views of a customer's own
+// agreements, schedule, statement and receipts, on the `customer` guard.
+Route::middleware(['customer.tenant'])
+    ->prefix('{shop}/customer')
+    ->name('customer.')
+    ->group(function () {
+        Volt::route('login', 'customer.login')->middleware('guest:customer')->name('login');
+
+        Route::middleware('auth:customer')->group(function () {
+            Route::post('logout', function (Shop $shop) {
+                Auth::guard('customer')->logout();
+                session()->invalidate();
+                session()->regenerateToken();
+
+                return redirect()->route('customer.login', ['shop' => $shop]);
+            })->name('logout');
+
+            Volt::route('/', 'customer.agreements')->name('agreements');
+            Volt::route('agreements/{agreement}', 'customer.agreement')->name('agreement');
+            Volt::route('ledger', 'customer.ledger')->name('ledger');
+            Volt::route('password', 'customer.password')->name('password');
+            Route::get('receipts/{payment}', CustomerReceiptController::class)->name('receipt');
+        });
     });
 
 require __DIR__.'/auth.php';

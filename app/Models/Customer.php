@@ -4,6 +4,8 @@ namespace App\Models;
 
 use App\Traits\BelongsToShop;
 use App\Traits\HasBoundedMediaCollections;
+use Illuminate\Auth\Authenticatable as AuthenticatableTrait;
+use Illuminate\Contracts\Auth\Authenticatable as AuthenticatableContract;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -14,9 +16,14 @@ use Spatie\MediaLibrary\HasMedia;
 use Spatie\MediaLibrary\InteractsWithMedia;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
 
-class Customer extends Model implements HasMedia
+/**
+ * Also the authenticatable for the customer portal (guard: customer), which
+ * is why this carries a password. Staff sign in as User on the web guard —
+ * the two are entirely separate sessions.
+ */
+class Customer extends Model implements AuthenticatableContract, HasMedia
 {
-    use BelongsToShop, HasBoundedMediaCollections, HasFactory, InteractsWithMedia, SoftDeletes;
+    use AuthenticatableTrait, BelongsToShop, HasBoundedMediaCollections, HasFactory, InteractsWithMedia, SoftDeletes;
 
     public const MEDIA_COLLECTION = 'customer_documents';
 
@@ -40,7 +47,11 @@ class Customer extends Model implements HasMedia
         'gender',
         'notes',
         'is_active',
+        'password',
+        'portal_last_login_at',
     ];
+
+    protected $hidden = ['password'];
 
     protected function casts(): array
     {
@@ -48,6 +59,8 @@ class Customer extends Model implements HasMedia
             'monthly_income' => 'decimal:2',
             'date_of_birth' => 'date',
             'is_active' => 'boolean',
+            'password' => 'hashed',
+            'portal_last_login_at' => 'datetime',
         ];
     }
 

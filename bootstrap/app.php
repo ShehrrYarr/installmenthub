@@ -18,12 +18,24 @@ return Application::configure(basePath: dirname(__DIR__))
             'permission' => \Spatie\Permission\Middleware\PermissionMiddleware::class,
             'role_or_permission' => \Spatie\Permission\Middleware\RoleOrPermissionMiddleware::class,
             'tenant.resolve' => \App\Http\Middleware\ResolveTenant::class,
+            'customer.tenant' => \App\Http\Middleware\ResolveCustomerPortalTenant::class,
         ]);
 
         // There's no single shared /login anymore (every shop has its own,
         // plus /superadmin/login) — route('login') can't resolve without a
         // shop, so a guest hitting a protected route needs this instead.
         $middleware->redirectGuestsTo(fn (Request $request) => Tenant::loginUrlFor($request));
+
+        // A signed-in customer landing on the portal login belongs in the
+        // portal — the default sends everyone to /dashboard, which is the
+        // staff side and not somewhere a customer can go.
+        $middleware->redirectUsersTo(function (Request $request) {
+            if (str_starts_with((string) $request->route()?->getName(), 'customer.')) {
+                return Tenant::portalHomeFor($request);
+            }
+
+            return '/dashboard';
+        });
 
         // Global so route('tenant.*', ...) also resolves on POST /livewire/update —
         // the shared endpoint every Livewire action hits, outside /s/{shop}/*.
