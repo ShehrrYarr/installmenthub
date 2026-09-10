@@ -179,7 +179,7 @@ class ExtraDemoDataSeeder extends Seeder
                 'running_balance' => $runningBalance,
                 'reference_type' => Agreement::class,
                 'reference_id' => $agreement->id,
-                'description' => "New agreement — {$agreement->agreement_number}",
+                'description' => "New agreement — {$agreement->ledgerLabel()}",
                 'entry_date' => $startDate->toDateString(),
                 'created_by' => $owner->id,
             ]);
@@ -241,7 +241,7 @@ class ExtraDemoDataSeeder extends Seeder
             'running_balance' => $runningBalance,
             'reference_type' => Payment::class,
             'reference_id' => $payment->id,
-            'description' => "Installment payment — {$agreement->agreement_number}",
+            'description' => "Installment payment — {$agreement->ledgerLabel()}",
             'entry_date' => $paidAt->toDateString(),
             'created_by' => $salesman->id,
         ]);

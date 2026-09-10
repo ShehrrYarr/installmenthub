@@ -104,7 +104,7 @@ new #[Layout('layouts.tenant')] class extends Component
     public function getSelectedAgreementProperty(): ?Agreement
     {
         return $this->selectedAgreementId
-            ? Agreement::with(['customer', 'schedules' => fn ($q) => $q->orderBy('installment_number')])->find($this->selectedAgreementId)
+            ? Agreement::with(['customer', 'items.product', 'schedules' => fn ($q) => $q->orderBy('installment_number')])->find($this->selectedAgreementId)
             : null;
     }
 
@@ -195,7 +195,7 @@ new #[Layout('layouts.tenant')] class extends Component
                 'running_balance' => bcsub($lastBalance, $this->amount, 2),
                 'reference_type' => Payment::class,
                 'reference_id' => $payment->id,
-                'description' => "Installment payment — {$agreement->agreement_number}",
+                'description' => "Installment payment — {$agreement->ledgerLabel()}",
                 'entry_date' => now()->toDateString(),
                 'created_by' => auth()->id(),
             ]);

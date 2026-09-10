@@ -409,7 +409,7 @@ new #[Layout('layouts.tenant')] class extends Component
                 'running_balance' => '0.00',
                 'reference_type' => Agreement::class,
                 'reference_id' => $agreement->id,
-                'description' => "New agreement — {$agreement->agreement_number}",
+                'description' => "New agreement — {$agreement->ledgerLabel()}",
                 'entry_date' => now()->toDateString(),
                 'created_by' => auth()->id(),
             ]);
@@ -438,7 +438,7 @@ new #[Layout('layouts.tenant')] class extends Component
                     'running_balance' => '0.00',
                     'reference_type' => Payment::class,
                     'reference_id' => $downPayment->id,
-                    'description' => "Down payment received — {$agreement->agreement_number}",
+                    'description' => "Down payment received — {$agreement->ledgerLabel()}",
                     'entry_date' => now()->toDateString(),
                     'created_by' => auth()->id(),
                 ]);

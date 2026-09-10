@@ -103,4 +103,33 @@ class Agreement extends Model
     {
         return $this->status === 'active';
     }
+
+    /**
+     * The product name(s) on this agreement, for ledger descriptions and
+     * anywhere else the agreement number alone is too cryptic. Every item
+     * is listed — an agreement can carry more than one product.
+     */
+    public function productSummary(): ?string
+    {
+        $names = $this->items
+            ->map(fn (AgreementItem $item) => $item->product?->name)
+            ->filter()
+            ->unique()
+            ->values();
+
+        return $names->isEmpty() ? null : $names->implode(', ');
+    }
+
+    /**
+     * "AGR-1-0001 (Haier 1.5 Ton Inverter AC)", falling back to the bare
+     * agreement number for an agreement with no named products.
+     */
+    public function ledgerLabel(): string
+    {
+        $products = $this->productSummary();
+
+        return $products === null
+            ? $this->agreement_number
+            : "{$this->agreement_number} ({$products})";
+    }
 }
