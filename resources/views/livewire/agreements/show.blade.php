@@ -229,6 +229,7 @@ new #[Layout('layouts.tenant')] class extends Component
                     <dl class="space-y-2 text-sm">
                         <div class="flex justify-between"><dt class="text-gray-500">Salesman</dt><dd class="text-gray-900 dark:text-white">{{ $agreement->salesman?->name ?? '—' }}</dd></div>
                         <div class="flex justify-between"><dt class="text-gray-500">Start Date</dt><dd class="text-gray-900 dark:text-white">{{ $agreement->start_date?->format('d M Y') ?? '—' }}</dd></div>
+                        <div class="flex justify-between"><dt class="text-gray-500">First Installment</dt><dd class="text-gray-900 dark:text-white">{{ $agreement->first_due_date?->format('d M Y') ?? '—' }}</dd></div>
                         <div class="flex justify-between"><dt class="text-gray-500">Approved By</dt><dd class="text-gray-900 dark:text-white">{{ $agreement->approver?->name ?? '—' }}</dd></div>
                     </dl>
                 </div>

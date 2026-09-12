@@ -65,13 +65,17 @@ final class EmiCalculator
      *     total_due: string, closing_balance: string,
      * }>
      */
-    public function schedule(string|CarbonInterface $startDate): array
+    public function schedule(string|CarbonInterface $startDate, bool $firstDueNextMonth = false): array
     {
         if ($this->durationMonths <= 0) {
             return [];
         }
 
+        // Shops either collect the first installment on the day the agreement
+        // is signed, or give the customer a month's breathing room first. The
+        // whole schedule shifts with it; the count of installments doesn't change.
         $start = Carbon::parse($startDate);
+        $firstMonthOffset = $firstDueNextMonth ? 1 : 0;
         $installment = $this->monthlyInstallment();
         $principalPerMonth = bcdiv($this->financedAmount(), (string) $this->durationMonths, 2);
         $interestPerMonth = bcdiv($this->totalInterest(), (string) $this->durationMonths, 2);
@@ -92,7 +96,7 @@ final class EmiCalculator
 
             $rows[] = [
                 'installment_number' => $i,
-                'due_date' => $start->copy()->addMonthsNoOverflow($i - 1)->toDateString(),
+                'due_date' => $start->copy()->addMonthsNoOverflow($i - 1 + $firstMonthOffset)->toDateString(),
                 'opening_balance' => $opening,
                 'principal_component' => $principal,
                 'interest_component' => $interest,

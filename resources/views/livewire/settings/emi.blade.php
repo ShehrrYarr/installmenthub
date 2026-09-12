@@ -8,11 +8,16 @@ new #[Layout('layouts.tenant')] class extends Component
 {
     public string $emi_price_basis;
 
+    public string $emi_first_installment;
+
     public function mount(): void
     {
         abort_unless(auth()->user()->hasRole('Shop Admin'), 403);
 
-        $this->emi_price_basis = Tenant::current()?->emi_price_basis ?? 'selling';
+        $shop = Tenant::current();
+
+        $this->emi_price_basis = $shop?->emi_price_basis ?? 'selling';
+        $this->emi_first_installment = $shop?->emi_first_installment ?? 'same_month';
     }
 
     public function setBasis(string $basis): void
@@ -27,11 +32,24 @@ new #[Layout('layouts.tenant')] class extends Component
 
         session()->flash('status', 'EMI price basis updated — applies to agreements created from now on.');
     }
+
+    public function setFirstInstallment(string $timing): void
+    {
+        abort_unless(in_array($timing, ['same_month', 'next_month'], true), 404);
+
+        $shop = Tenant::current();
+        abort_unless($shop, 403);
+
+        $shop->update(['emi_first_installment' => $timing]);
+        $this->emi_first_installment = $timing;
+
+        session()->flash('status', 'First installment timing updated — applies to agreements created from now on.');
+    }
 } ?>
 
 @slot('header')
     <h1 class="text-xl font-semibold" style="color: var(--theme-bg-text)">Settings</h1>
-    <p class="text-sm opacity-70" style="color: var(--theme-bg-text)">Choose which price the EMI calculator starts from</p>
+    <p class="text-sm opacity-70" style="color: var(--theme-bg-text)">How agreements are priced and when their instalments fall due</p>
 @endslot
 
 <div>
@@ -94,6 +112,51 @@ new #[Layout('layouts.tenant')] class extends Component
                     @endif
                 </div>
                 <p class="text-sm text-gray-500 dark:text-gray-400">What the shop paid for the product. Note: this price will then be visible to whoever creates the agreement, including Salesman.</p>
+            </button>
+        </div>
+    </div>
+
+    <div class="mt-6 rounded-2xl border border-white/40 dark:border-gray-700/60 bg-white/70 dark:bg-gray-800/60 backdrop-blur-xl shadow-lg shadow-gray-900/5 p-5">
+        <h3 class="font-semibold text-gray-900 dark:text-white mb-1">First Installment</h3>
+        <p class="text-sm text-gray-500 dark:text-gray-400 mb-5">
+            When does installment #1 fall due, counting from the agreement's start date? The whole schedule shifts with it — the number of installments never changes.
+            Staff can still set a different start date on an individual agreement.
+        </p>
+
+        @php
+            $sameMonthExample = now()->format('d M');
+            $nextMonthExample = now()->addMonthNoOverflow()->format('d M');
+        @endphp
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <button type="button" wire:click="setFirstInstallment('same_month')"
+                class="text-left rounded-2xl border-2 p-4 transition {{ $emi_first_installment === 'same_month' ? 'border-walnut-400 shadow-md' : 'border-gray-200 dark:border-gray-700 hover:border-gray-300' }}">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="font-medium text-gray-900 dark:text-white">Same Month</span>
+                    @if ($emi_first_installment === 'same_month')
+                        <span class="inline-flex items-center gap-1 rounded-full bg-walnut-600 px-2 py-0.5 text-xs font-medium text-white">
+                            <x-tenant-icon name="check-circle" class="h-3.5 w-3.5" /> Active
+                        </span>
+                    @endif
+                </div>
+                <p class="text-sm text-gray-500 dark:text-gray-400">
+                    Installment #1 is due on the start date itself. An agreement signed today would collect on <span class="font-medium text-gray-700 dark:text-gray-300">{{ $sameMonthExample }}</span>.
+                </p>
+            </button>
+
+            <button type="button" wire:click="setFirstInstallment('next_month')"
+                class="text-left rounded-2xl border-2 p-4 transition {{ $emi_first_installment === 'next_month' ? 'border-walnut-400 shadow-md' : 'border-gray-200 dark:border-gray-700 hover:border-gray-300' }}">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="font-medium text-gray-900 dark:text-white">Next Month</span>
+                    @if ($emi_first_installment === 'next_month')
+                        <span class="inline-flex items-center gap-1 rounded-full bg-walnut-600 px-2 py-0.5 text-xs font-medium text-white">
+                            <x-tenant-icon name="check-circle" class="h-3.5 w-3.5" /> Active
+                        </span>
+                    @endif
+                </div>
+                <p class="text-sm text-gray-500 dark:text-gray-400">
+                    Installment #1 is due one month after the start date, same day. An agreement signed today would collect on <span class="font-medium text-gray-700 dark:text-gray-300">{{ $nextMonthExample }}</span>.
+                </p>
             </button>
         </div>
     </div>

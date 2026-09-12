@@ -1,6 +1,7 @@
 <?php
 
 use App\Support\EmiCalculator;
+use App\Support\Tenant;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
 use Livewire\Volt\Component;
@@ -65,7 +66,10 @@ new #[Layout('layouts.tenant')] class extends Component
             return [];
         }
 
-        return $this->calculator->schedule($this->startDate ?: now()->toDateString());
+        return $this->calculator->schedule(
+            $this->startDate ?: now()->toDateString(),
+            Tenant::current()?->firstDueNextMonth() ?? false,
+        );
     }
 
     private function numeric(?string $value): string

@@ -59,6 +59,10 @@ new #[Layout('layouts.customer')] class extends Component
                 <dd class="mt-0.5 font-medium text-gray-900">{{ $agreement->duration_months }} months</dd>
             </div>
             <div>
+                <dt class="text-xs text-gray-500">First instalment</dt>
+                <dd class="mt-0.5 font-medium text-gray-900">{{ $agreement->first_due_date?->format('d M Y') ?? '—' }}</dd>
+            </div>
+            <div>
                 <dt class="text-xs text-gray-500">Total payable</dt>
                 <dd class="mt-0.5 font-medium text-gray-900">Rs. {{ number_format((float) $agreement->total_payable, 0) }}</dd>
             </div>

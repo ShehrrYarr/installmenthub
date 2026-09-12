@@ -34,6 +34,7 @@ class Shop extends Model
         'default_interest_rate',
         'default_processing_fee',
         'emi_price_basis',
+        'emi_first_installment',
         'penalty_type',
         'penalty_rate',
         'grace_period_days',
@@ -136,5 +137,14 @@ class Shop extends Model
     public function isSuspended(): bool
     {
         return $this->subscription_status === 'suspended';
+    }
+
+    /**
+     * Whether installment #1 falls due a month after the agreement's start
+     * date rather than on it. Set in Settings → EMI Settings.
+     */
+    public function firstDueNextMonth(): bool
+    {
+        return $this->emi_first_installment === 'next_month';
     }
 }

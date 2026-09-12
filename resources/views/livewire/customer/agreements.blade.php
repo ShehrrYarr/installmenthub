@@ -72,7 +72,12 @@ new #[Layout('layouts.customer')] class extends Component
                     <div class="flex items-start justify-between gap-3">
                         <div class="min-w-0">
                             <p class="font-medium text-gray-900 transition-colors group-hover:text-[var(--theme-accent)]">{{ $agreement->items->first()?->product->name ?? 'Agreement' }}</p>
-                            <p class="mt-0.5 text-xs text-gray-500">{{ $agreement->agreement_number }} · started {{ $agreement->start_date?->format('d M Y') }}</p>
+                            <p class="mt-0.5 text-xs text-gray-500">
+                                {{ $agreement->agreement_number }} · started {{ $agreement->start_date?->format('d M Y') }}
+                                @if ($agreement->first_due_date)
+                                    · 1st instalment {{ $agreement->first_due_date->format('d M Y') }}
+                                @endif
+                            </p>
                         </div>
                         <x-status-badge :status="$agreement->status" />
                     </div>

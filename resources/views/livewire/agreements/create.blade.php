@@ -13,6 +13,7 @@ use App\Models\PurchaseOrderItem;
 use App\Models\User;
 use App\Support\EmiCalculator;
 use App\Support\PaymentMethod;
+use App\Support\Tenant;
 use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Validate;
@@ -263,6 +264,31 @@ new #[Layout('layouts.tenant')] class extends Component
         );
     }
 
+    /**
+     * Shops either collect installment #1 on the agreement's start date or a
+     * month later — Settings → EMI Settings.
+     */
+    public function firstDueNextMonth(): bool
+    {
+        return Tenant::current()?->firstDueNextMonth() ?? false;
+    }
+
+    /**
+     * Shown under the Start Date field so whoever is filling in the form can
+     * see the date the customer will actually be asked to pay on.
+     */
+    #[Computed]
+    public function firstDueDate(): ?string
+    {
+        if (! $this->startDate) {
+            return null;
+        }
+
+        return \Illuminate\Support\Carbon::parse($this->startDate)
+            ->addMonthsNoOverflow($this->firstDueNextMonth() ? 1 : 0)
+            ->format('d M Y');
+    }
+
     public function save(): void
     {
         $this->validate();
@@ -334,7 +360,7 @@ new #[Layout('layouts.tenant')] class extends Component
 
         $agreement = DB::transaction(function () use ($downPaymentMode, $downPaymentBankId) {
             $calculator = $this->calculator;
-            $schedule = $calculator->schedule($this->startDate);
+            $schedule = $calculator->schedule($this->startDate, $this->firstDueNextMonth());
 
             $agreement = Agreement::create([
                 'customer_id' => $this->customer_id,
@@ -557,6 +583,11 @@ new #[Layout('layouts.tenant')] class extends Component
                     <div>
                         <x-input-label for="startDate" value="Start Date" />
                         <x-text-input id="startDate" type="date" wire:model.live="startDate" class="mt-1 block w-full" />
+                        @if ($this->firstDueDate)
+                            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                First installment due {{ $this->firstDueDate }}{{ $this->firstDueNextMonth() ? ' (a month after the start date)' : '' }}
+                            </p>
+                        @endif
                     </div>
                 </div>
 
