@@ -44,7 +44,11 @@ new #[Layout('layouts.tenant')] class extends Component
 
     public string $downPaymentType = 'fixed';
 
-    #[Validate('required|numeric|min:0')]
+    // Deliberately not `required`: an empty box means no deposit, and
+    // updatedDownPaymentValue() writes the 0 back. With `required` the live
+    // validation fired on the empty value before that hook ran, leaving the
+    // field reading 0 with "field is required" underneath it.
+    #[Validate('nullable|numeric|min:0')]
     public string $downPaymentValue = '0';
 
     // Set once a salesman types their own figure, so picking a different
