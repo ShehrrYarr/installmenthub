@@ -238,11 +238,18 @@ new #[Layout('layouts.tenant')] class extends Component
                     </p>
                 </div>
 
+                {{-- The off state needs its own outline: a pale track on a white
+                     card reads as nothing at all, and then the only clue left is
+                     which side the knob sits on. --}}
                 <button type="button" wire:click="$toggle('penalties_enabled')" role="switch"
-                    :aria-checked="@js($penalties_enabled)"
-                    class="relative mt-1 inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition focus:outline-none focus:ring-2 focus:ring-walnut-400 focus:ring-offset-2 {{ $penalties_enabled ? 'bg-walnut-600' : 'bg-gray-300 dark:bg-gray-600' }}">
+                    aria-checked="{{ $penalties_enabled ? 'true' : 'false' }}"
+                    class="relative mt-1 inline-flex h-7 w-12 shrink-0 cursor-pointer items-center rounded-full p-0.5 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-walnut-400 focus:ring-offset-2
+                           {{ $penalties_enabled
+                                ? 'bg-walnut-600 ring-1 ring-inset ring-walnut-600'
+                                : 'bg-gray-200 ring-1 ring-inset ring-gray-400 dark:bg-gray-700 dark:ring-gray-500' }}">
                     <span class="sr-only">Charge late payment penalties</span>
-                    <span class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow transition {{ $penalties_enabled ? 'translate-x-5' : 'translate-x-0' }}"></span>
+                    <span class="pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow-md ring-1 ring-black/10 transition-transform duration-200
+                                 {{ $penalties_enabled ? 'translate-x-5' : 'translate-x-0' }}"></span>
                 </button>
             </div>
 
