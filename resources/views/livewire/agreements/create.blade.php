@@ -38,10 +38,14 @@ new #[Layout('layouts.tenant')] class extends Component
     #[Validate('required|integer|min:1')]
     public string $productPrice = '0';
 
-    public string $downPaymentType = 'percent';
+    public string $downPaymentType = 'fixed';
 
     #[Validate('required|numeric|min:0')]
-    public string $downPaymentValue = '20';
+    public string $downPaymentValue = '0';
+
+    // Set once a salesman types their own figure, so picking a different
+    // serial (which re-reads the price) stops overwriting what they entered.
+    public bool $downPaymentTouched = false;
 
     public string $downPaymentMode = PaymentMethod::CASH;
 
@@ -54,7 +58,7 @@ new #[Layout('layouts.tenant')] class extends Component
     public string $processingFee = '0';
 
     #[Validate('required|integer|min:1|max:36')]
-    public int $durationMonths = 12;
+    public ?int $durationMonths = 12;
 
     #[Validate('required|date')]
     public string $startDate = '';
@@ -112,6 +116,48 @@ new #[Layout('layouts.tenant')] class extends Component
         $this->productPrice = $product ? $this->wholeRupees($basis === 'cost' ? $product->cost_price : $product->cash_price) : '0';
         $this->product_serial_id = null;
         $this->purchase_order_item_id = null;
+        $this->applyDefaultDownPayment();
+    }
+
+    /**
+     * Down payments are entered in rupees, but the shop's usual deposit is
+     * still a fifth of the price — so the field is seeded with that in rupees
+     * as soon as a price is known, and left alone once anyone edits it.
+     */
+    private function applyDefaultDownPayment(): void
+    {
+        if ($this->downPaymentTouched) {
+            return;
+        }
+
+        $this->downPaymentValue = $this->wholeRupees(
+            bcdiv(bcmul($this->numeric($this->productPrice), '20', 4), '100', 2)
+        );
+    }
+
+    public function updatedDownPaymentValue(): void
+    {
+        $this->downPaymentTouched = true;
+
+        if (trim($this->downPaymentValue) === '') {
+            $this->downPaymentValue = '0';
+        }
+    }
+
+    public function updatedDurationMonths(): void
+    {
+        $this->validateOnly('durationMonths');
+    }
+
+    /** @return array<string, string> */
+    protected function messages(): array
+    {
+        return [
+            'durationMonths.required' => 'Enter a duration between 1 and 36 months.',
+            'durationMonths.integer' => 'Duration must be a whole number of months.',
+            'durationMonths.min' => 'Duration must be at least 1 month.',
+            'durationMonths.max' => 'Duration cannot be more than 36 months.',
+        ];
     }
 
     /** Picking a specific unit/batch means we know its actual purchase price — use that over the product's shop-wide default. */
@@ -123,6 +169,7 @@ new #[Layout('layouts.tenant')] class extends Component
 
         $basis = \App\Support\Tenant::current()?->emi_price_basis ?? 'selling';
         $this->productPrice = $this->wholeRupees($basis === 'cost' ? $batch->cost_price : $batch->selling_cash_price);
+        $this->applyDefaultDownPayment();
     }
 
     /** productPrice validates as `integer` — decimal-cast model attributes (e.g. "69999.00") fail that rule, so strip to a plain whole-rupee string. */
@@ -260,8 +307,18 @@ new #[Layout('layouts.tenant')] class extends Component
             downPayment: $this->downPaymentAmount,
             processingFee: $this->numeric($this->processingFee),
             interestRate: $this->numeric($this->interestRate),
-            durationMonths: $this->durationMonths,
+            durationMonths: $this->durationMonths ?? 0,
         );
+    }
+
+    /**
+     * The summary has nothing to say until there's a duration to divide by —
+     * it shows dashes rather than a momentary, meaningless "Rs. 0".
+     */
+    #[Computed]
+    public function hasDuration(): bool
+    {
+        return $this->durationMonths !== null && $this->durationMonths >= 1;
     }
 
     /**
@@ -561,11 +618,11 @@ new #[Layout('layouts.tenant')] class extends Component
                     <div>
                         <x-input-label value="Down Payment" />
                         <div class="mt-1 flex rounded-lg shadow-sm">
-                            <input type="number" step="0.01" wire:model.live="downPaymentValue"
+                            <input type="number" step="0.01" wire:model.live="downPaymentValue" onfocus="this.select()"
                                 class="block w-full rounded-l-lg border-gray-300 dark:border-gray-600 dark:bg-gray-900 focus:border-walnut-400 focus:ring-walnut-400">
                             <select wire:model.live="downPaymentType" class="rounded-r-lg border-l-0 border-gray-300 dark:border-gray-600 dark:bg-gray-900 text-sm">
-                                <option value="percent">%</option>
                                 <option value="fixed">Rs.</option>
+                                <option value="percent">%</option>
                             </select>
                         </div>
                         <p class="mt-1 text-xs text-gray-400">≈ Rs. {{ number_format((float) $this->downPaymentAmount, 0) }}</p>
@@ -602,14 +659,18 @@ new #[Layout('layouts.tenant')] class extends Component
 
             <div class="rounded-2xl border border-walnut-200/60 dark:border-walnut-900/60 bg-walnut-50/70 dark:bg-walnut-900/40 backdrop-blur-xl shadow-lg p-5 space-y-4">
                 <h3 class="font-semibold text-walnut-900 dark:text-walnut-200">Summary</h3>
+                @php
+                    $money = fn ($value) => $this->hasDuration ? 'Rs. '.number_format((float) $value, 0) : '—';
+                @endphp
                 <dl class="space-y-3 text-sm">
-                    <div class="flex justify-between"><dt class="text-walnut-600/70 dark:text-walnut-200/70">Financed</dt><dd class="font-medium text-walnut-900 dark:text-walnut-200">Rs. {{ number_format((float) $this->calculator->financedAmount(), 0) }}</dd></div>
-                    <div class="flex justify-between"><dt class="text-walnut-600/70 dark:text-walnut-200/70">Total Interest</dt><dd class="font-medium text-walnut-900 dark:text-walnut-200">Rs. {{ number_format((float) $this->calculator->totalInterest(), 0) }}</dd></div>
-                    <div class="flex justify-between border-t border-walnut-200 dark:border-walnut-900 pt-3"><dt class="text-walnut-600/70 dark:text-walnut-200/70">Total Payable</dt><dd class="font-semibold text-walnut-900 dark:text-walnut-200">Rs. {{ number_format((float) $this->calculator->totalPayable(), 0) }}</dd></div>
+                    <div class="flex justify-between"><dt class="text-walnut-600/70 dark:text-walnut-200/70">Down Payment</dt><dd class="font-medium text-walnut-900 dark:text-walnut-200">{{ $money($this->downPaymentAmount) }}</dd></div>
+                    <div class="flex justify-between"><dt class="text-walnut-600/70 dark:text-walnut-200/70">Financed</dt><dd class="font-medium text-walnut-900 dark:text-walnut-200">{{ $money($this->calculator->financedAmount()) }}</dd></div>
+                    <div class="flex justify-between"><dt class="text-walnut-600/70 dark:text-walnut-200/70">Total Interest</dt><dd class="font-medium text-walnut-900 dark:text-walnut-200">{{ $money($this->calculator->totalInterest()) }}</dd></div>
+                    <div class="flex justify-between border-t border-walnut-200 dark:border-walnut-900 pt-3"><dt class="text-walnut-600/70 dark:text-walnut-200/70">Total Payable</dt><dd class="font-semibold text-walnut-900 dark:text-walnut-200">{{ $money($this->calculator->totalPayable()) }}</dd></div>
                 </dl>
                 <div class="rounded-xl bg-white/70 dark:bg-gray-900/50 p-4 text-center">
                     <p class="text-xs text-walnut-600/70 dark:text-walnut-200/70">Monthly Installment</p>
-                    <p class="text-3xl font-bold text-walnut-600 dark:text-walnut-200">Rs. {{ number_format((float) $this->calculator->monthlyInstallment(), 0) }}</p>
+                    <p class="text-3xl font-bold text-walnut-600 dark:text-walnut-200">{{ $money($this->calculator->monthlyInstallment()) }}</p>
                 </div>
             </div>
         </div>
