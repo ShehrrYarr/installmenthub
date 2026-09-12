@@ -15,9 +15,11 @@ new #[Layout('layouts.customer')] class extends Component
             ->ledgerEntries()
             ->with([
                 'bank',
+                'media',
                 // Polymorphic: a Payment for a collection, the Agreement itself
-                // for the opening debit. Only Payment carries a bank.
-                'reference' => fn ($morphTo) => $morphTo->morphWith([Payment::class => ['bank']]),
+                // for the opening debit. Only Payment carries a bank (and a
+                // receipt proof, which the row shows as a paperclip).
+                'reference' => fn ($morphTo) => $morphTo->morphWith([Payment::class => ['bank', 'media']]),
             ])
             ->orderBy('entry_date')
             ->orderBy('id')
@@ -67,6 +69,7 @@ new #[Layout('layouts.customer')] class extends Component
                                 @if ($entry->paymentModeLabel())
                                     <span class="text-xs text-gray-400">({{ $entry->paymentModeLabel() }})</span>
                                 @endif
+                                <x-receipt-proof-link :proof="$entry->resolvedReceiptProof()" route-name="customer.receipt-proof" class="ml-1" />
                             </td>
                             <td class="px-4 py-2.5 text-right text-rose-600">{{ $entry->type === 'debit' ? number_format((float) $entry->amount, 0) : '' }}</td>
                             <td class="px-4 py-2.5 text-right text-emerald-600">{{ $entry->type === 'credit' ? number_format((float) $entry->amount, 0) : '' }}</td>

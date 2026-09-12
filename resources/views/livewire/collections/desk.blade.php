@@ -1,5 +1,6 @@
 <?php
 
+use App\Livewire\Concerns\HandlesReceiptProof;
 use App\Models\Agreement;
 use App\Models\CustomerLedgerEntry;
 use App\Models\Payment;
@@ -8,9 +9,12 @@ use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Url;
 use Livewire\Volt\Component;
+use Livewire\WithFileUploads;
 
 new #[Layout('layouts.tenant')] class extends Component
 {
+    use HandlesReceiptProof, WithFileUploads;
+
     public string $query = '';
 
     public ?int $selectedAgreementId = null;
@@ -114,6 +118,7 @@ new #[Layout('layouts.tenant')] class extends Component
             'amount' => 'required|numeric|min:0.01',
             'paymentMode' => PaymentMethod::methodRule(),
             'bankId' => PaymentMethod::bankRule('paymentMode'),
+            ...$this->receiptProofRules(),
         ], PaymentMethod::bankMessages('bankId'));
 
         $agreement = $this->selectedAgreement;
@@ -206,6 +211,8 @@ new #[Layout('layouts.tenant')] class extends Component
 
             return $payment;
         });
+
+        $this->storeReceiptProof($payment);
 
         $this->lastPaymentId = $payment->id;
         $this->reset(['amount', 'referenceNumber', 'notes']);

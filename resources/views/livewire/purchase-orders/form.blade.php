@@ -1,5 +1,6 @@
 <?php
 
+use App\Livewire\Concerns\HandlesReceiptProof;
 use App\Models\Product;
 use App\Models\PurchaseOrder;
 use App\Models\Vendor;
@@ -9,9 +10,12 @@ use Livewire\Attributes\Computed;
 use Livewire\Attributes\Validate;
 use Livewire\Attributes\Layout;
 use Livewire\Volt\Component;
+use Livewire\WithFileUploads;
 
 new #[Layout('layouts.tenant')] class extends Component
 {
+    use HandlesReceiptProof, WithFileUploads;
+
     #[Validate('required|exists:vendors,id')]
     public ?int $vendor_id = null;
 
@@ -156,6 +160,7 @@ new #[Layout('layouts.tenant')] class extends Component
         $this->validate([
             'payment_mode' => PaymentMethod::methodRule(withCredit: true),
             'bankId' => PaymentMethod::bankRule('payment_mode'),
+            ...$this->receiptProofRules(),
         ], PaymentMethod::bankMessages('bankId'));
 
         // `exists:products,id` (and the vendor_id rule above) run a plain DB
@@ -206,6 +211,8 @@ new #[Layout('layouts.tenant')] class extends Component
 
             return $order;
         });
+
+        $this->storeReceiptProof($order);
 
         session()->flash('status', "Purchase order {$order->po_number} created. Receive stock to register serial numbers.");
 

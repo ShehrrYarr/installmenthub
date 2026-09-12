@@ -1,5 +1,6 @@
 <?php
 
+use App\Livewire\Concerns\HandlesReceiptProof;
 use App\Models\Customer;
 use App\Models\CustomerLedgerEntry;
 use App\Models\CustomerLedgerEntryRevision;
@@ -9,9 +10,12 @@ use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Validate;
 use Livewire\Volt\Component;
+use Livewire\WithFileUploads;
 
 new #[Layout('layouts.tenant')] class extends Component
 {
+    use HandlesReceiptProof, WithFileUploads;
+
     public Customer $customer;
 
     public bool $showEntryForm = false;
@@ -98,6 +102,7 @@ new #[Layout('layouts.tenant')] class extends Component
         $this->validate([
             'entryPaymentMode' => PaymentMethod::methodRule(),
             'entryBankId' => PaymentMethod::bankRule('entryPaymentMode'),
+            ...$this->receiptProofRules(),
         ], PaymentMethod::bankMessages('entryBankId'));
 
         $type = $this->entryDirection === 'cash_in' ? 'credit' : 'debit';
@@ -129,9 +134,11 @@ new #[Layout('layouts.tenant')] class extends Component
                 'entry_date' => $this->entryDate,
             ]);
 
+            $this->storeReceiptProof($entry);
+
             session()->flash('status', 'Ledger entry updated.');
         } else {
-            CustomerLedgerEntry::create([
+            $entry = CustomerLedgerEntry::create([
                 'customer_id' => $this->customer->id,
                 'agreement_id' => $this->entryAgreementId,
                 'type' => $type,
@@ -145,6 +152,8 @@ new #[Layout('layouts.tenant')] class extends Component
                 'entry_date' => $this->entryDate,
                 'created_by' => auth()->id(),
             ]);
+
+            $this->storeReceiptProof($entry);
 
             session()->flash('status', 'Ledger entry added.');
         }
@@ -180,11 +189,12 @@ new #[Layout('layouts.tenant')] class extends Component
                 'revisions.editor',
                 'revisions.bank',
                 'bank',
+                'media',
                 // `reference` is polymorphic — it points at a Payment for a
                 // collection, but at the Agreement itself for the opening
-                // debit. Only Payment has a bank, so scope the nested load
-                // to it rather than asking every morph target for one.
-                'reference' => fn ($morphTo) => $morphTo->morphWith([Payment::class => ['bank']]),
+                // debit. Only Payment has a bank and a receipt proof, so scope
+                // the nested load to it rather than asking every morph target.
+                'reference' => fn ($morphTo) => $morphTo->morphWith([Payment::class => ['bank', 'media']]),
             ])
             ->orderBy('entry_date')
             ->orderBy('id')
@@ -298,7 +308,11 @@ new #[Layout('layouts.tenant')] class extends Component
                             <x-text-input type="date" wire:model="entryDate" class="mt-1 block w-full" />
                             <x-input-error :messages="$errors->get('entryDate')" class="mt-1" />
                         </div>
-                        <x-payment-method-select method-model="entryPaymentMode" bank-model="entryBankId" class="sm:col-span-2" />
+                        @php($editingEntry = $this->editingEntryId ? $this->entries->firstWhere('id', $this->editingEntryId) : null)
+                        @php($existingProof = $this->receiptProofCleared ? null : $editingEntry?->receiptProof())
+                        <x-payment-method-select method-model="entryPaymentMode" bank-model="entryBankId" class="sm:col-span-2"
+                            :existing-proof="$existingProof"
+                            :proof-url="$existingProof ? route('tenant.receipt-proof', ['media' => $existingProof]) : null" />
                         <div class="sm:col-span-2">
                             <x-input-label value="Description" />
                             <x-text-input wire:model="entryDescription" placeholder="e.g. Cash collected before switching to this system" class="mt-1 block w-full" />
@@ -355,6 +369,7 @@ new #[Layout('layouts.tenant')] class extends Component
                                     @if ($entry->paymentModeLabel())
                                         <span class="text-xs text-gray-400">({{ $entry->paymentModeLabel() }})</span>
                                     @endif
+                                    <x-receipt-proof-link :proof="$entry->resolvedReceiptProof()" :missing="$entry->needsReceiptProof()" class="ml-1" />
                                     @if ($entry->isManual())
                                         <span class="ml-1.5 inline-flex items-center rounded-full bg-gray-100 dark:bg-gray-700 px-2 py-0.5 text-xs font-medium text-gray-500 dark:text-gray-400">Manual</span>
                                     @endif

@@ -3,15 +3,17 @@
 namespace App\Models;
 
 use App\Traits\BelongsToShop;
+use App\Traits\HasReceiptProof;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Spatie\MediaLibrary\HasMedia;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
-class PurchaseOrder extends Model
+class PurchaseOrder extends Model implements HasMedia
 {
-    use BelongsToShop, HasFactory, SoftDeletes;
+    use BelongsToShop, HasFactory, HasReceiptProof, SoftDeletes;
 
     protected $fillable = [
         'shop_id',

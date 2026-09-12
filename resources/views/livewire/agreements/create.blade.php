@@ -1,5 +1,6 @@
 <?php
 
+use App\Livewire\Concerns\HandlesReceiptProof;
 use App\Models\Agreement;
 use App\Models\AgreementItem;
 use App\Models\Customer;
@@ -19,9 +20,12 @@ use Livewire\Attributes\Computed;
 use Livewire\Attributes\Validate;
 use Livewire\Attributes\Layout;
 use Livewire\Volt\Component;
+use Livewire\WithFileUploads;
 
 new #[Layout('layouts.tenant')] class extends Component
 {
+    use HandlesReceiptProof, WithFileUploads;
+
     #[Validate('required|exists:customers,id')]
     public ?int $customer_id = null;
 
@@ -352,6 +356,7 @@ new #[Layout('layouts.tenant')] class extends Component
         $this->validate([
             'downPaymentMode' => PaymentMethod::methodRule(),
             'downPaymentBankId' => PaymentMethod::bankRule('downPaymentMode'),
+            ...$this->receiptProofRules(),
         ], PaymentMethod::bankMessages('downPaymentBankId'));
 
         if ($this->guarantor2Provided()) {
@@ -525,6 +530,8 @@ new #[Layout('layouts.tenant')] class extends Component
                     'entry_date' => now()->toDateString(),
                     'created_by' => auth()->id(),
                 ]);
+
+                $this->storeReceiptProof($downPayment);
             }
 
             CustomerLedgerEntry::recalculateFor($this->customer_id);

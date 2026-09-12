@@ -1,13 +1,17 @@
 <?php
 
+use App\Livewire\Concerns\HandlesReceiptProof;
 use App\Models\Expense;
 use App\Support\PaymentMethod;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Validate;
 use Livewire\Volt\Component;
+use Livewire\WithFileUploads;
 
 new #[Layout('layouts.tenant')] class extends Component
 {
+    use HandlesReceiptProof, WithFileUploads;
+
     public ?Expense $expense = null;
 
     #[Validate('required|string|max:100')]
@@ -36,7 +40,9 @@ new #[Layout('layouts.tenant')] class extends Component
 
             $this->expense = $expense;
             $this->category = $expense->category;
-            $this->amount = (string) $expense->amount;
+            // `amount` validates as `integer`, but the column is decimal-cast and
+            // hands back "1234.00" — which failed the rule on every edit.
+            $this->amount = (string) (int) round((float) $expense->amount);
             $this->expense_date = $expense->expense_date->toDateString();
             $this->description = $expense->description ?? '';
             [$this->paymentMethod, $this->bankId] = PaymentMethod::forForm($expense->payment_mode, $expense->bank_id);
@@ -51,6 +57,7 @@ new #[Layout('layouts.tenant')] class extends Component
         $this->validate([
             'paymentMethod' => PaymentMethod::methodRule(),
             'bankId' => PaymentMethod::bankRule('paymentMethod'),
+            ...$this->receiptProofRules(),
         ], PaymentMethod::bankMessages('bankId'));
 
         [$paymentMode, $bankId] = PaymentMethod::toStorage($this->paymentMethod, $this->bankId);
@@ -66,9 +73,12 @@ new #[Layout('layouts.tenant')] class extends Component
 
         if ($this->expense) {
             $this->expense->update($data);
+            $expenseRecord = $this->expense;
         } else {
-            Expense::create([...$data, 'created_by' => auth()->id()]);
+            $expenseRecord = Expense::create([...$data, 'created_by' => auth()->id()]);
         }
+
+        $this->storeReceiptProof($expenseRecord);
 
         session()->flash('status', $this->expense ? 'Expense updated.' : 'Expense added.');
 
@@ -107,7 +117,9 @@ new #[Layout('layouts.tenant')] class extends Component
                     <x-text-input type="date" wire:model="expense_date" class="mt-1 block w-full" />
                     <x-input-error :messages="$errors->get('expense_date')" class="mt-1" />
                 </div>
-                <x-payment-method-select method-model="paymentMethod" bank-model="bankId" label="Payment Mode" class="sm:col-span-2" />
+                <x-payment-method-select method-model="paymentMethod" bank-model="bankId" label="Payment Mode" class="sm:col-span-2"
+                    :existing-proof="$this->receiptProofCleared ? null : $expense?->receiptProof()"
+                    :proof-url="$expense?->receiptProof() ? route('tenant.receipt-proof', ['media' => $expense->receiptProof()]) : null" />
                 <div class="sm:col-span-2">
                     <x-input-label value="Description (optional)" />
                     <x-text-input wire:model="description" placeholder="e.g. September shop rent" class="mt-1 block w-full" />

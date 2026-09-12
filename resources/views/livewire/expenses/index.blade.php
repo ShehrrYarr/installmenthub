@@ -21,7 +21,7 @@ new #[Layout('layouts.tenant')] class extends Component
         $query = Expense::query()
             ->when($this->category !== 'all', fn ($q) => $q->where('category', $this->category));
 
-        $expenses = (clone $query)->with(['creator', 'bank'])->latest('expense_date')->latest('id')->paginate(15);
+        $expenses = (clone $query)->with(['creator', 'bank', 'media'])->latest('expense_date')->latest('id')->paginate(15);
         $total = (string) (clone $query)->sum('amount');
 
         return ['expenses' => $expenses, 'total' => $total];
@@ -74,7 +74,10 @@ new #[Layout('layouts.tenant')] class extends Component
                                 <td class="px-4 py-2.5 text-gray-500">{{ $expense->expense_date->format('d M Y') }}</td>
                                 <td class="px-4 py-2.5 text-gray-700 dark:text-gray-300">{{ $expense->category }}</td>
                                 <td class="px-4 py-2.5 text-gray-500 dark:text-gray-400">{{ $expense->description ?: '—' }}</td>
-                                <td class="px-4 py-2.5 text-gray-500 dark:text-gray-400">{{ \App\Support\PaymentMethod::label($expense->payment_mode, $expense->bank) }}</td>
+                                <td class="px-4 py-2.5 text-gray-500 dark:text-gray-400">
+                                    {{ \App\Support\PaymentMethod::label($expense->payment_mode, $expense->bank) }}
+                                    <x-receipt-proof-link :proof="$expense->receiptProof()" :missing="$expense->missingReceiptProof()" class="ml-1" />
+                                </td>
                                 <td class="px-4 py-2.5 text-gray-500 dark:text-gray-400">{{ $expense->creator?->name ?? '—' }}</td>
                                 <td class="px-4 py-2.5 text-right font-medium text-gray-900 dark:text-white">Rs. {{ number_format((float) $expense->amount, 0) }}</td>
                                 <td class="px-4 py-2.5 text-right">

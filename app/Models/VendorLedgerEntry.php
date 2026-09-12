@@ -3,15 +3,18 @@
 namespace App\Models;
 
 use App\Traits\BelongsToShop;
+use App\Traits\HasReceiptProof;
+use App\Traits\ResolvesLedgerReceiptProof;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Spatie\MediaLibrary\HasMedia;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 
-class VendorLedgerEntry extends Model
+class VendorLedgerEntry extends Model implements HasMedia
 {
-    use BelongsToShop, HasFactory;
+    use BelongsToShop, HasFactory, HasReceiptProof, ResolvesLedgerReceiptProof;
 
     protected $fillable = [
         'shop_id',

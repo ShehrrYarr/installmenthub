@@ -1,5 +1,6 @@
 <?php
 
+use App\Livewire\Concerns\HandlesReceiptProof;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderItem;
 use App\Models\Vendor;
@@ -10,11 +11,12 @@ use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Validate;
 use Livewire\Volt\Component;
+use Livewire\WithFileUploads;
 use Livewire\WithPagination;
 
 new #[Layout('layouts.tenant')] class extends Component
 {
-    use WithPagination;
+    use HandlesReceiptProof, WithFileUploads, WithPagination;
 
     public Vendor $vendor;
 
@@ -123,6 +125,7 @@ new #[Layout('layouts.tenant')] class extends Component
         $this->validate([
             'entryPaymentMode' => PaymentMethod::methodRule(),
             'entryBankId' => PaymentMethod::bankRule('entryPaymentMode'),
+            ...$this->receiptProofRules(),
         ], PaymentMethod::bankMessages('entryBankId'));
 
         [$paymentMode, $bankId] = PaymentMethod::toStorage($this->entryPaymentMode, $this->entryBankId);
@@ -165,9 +168,11 @@ new #[Layout('layouts.tenant')] class extends Component
                 'entry_date' => $this->entryDate,
             ]);
 
+            $this->storeReceiptProof($entry);
+
             session()->flash('status', 'Ledger entry updated.');
         } else {
-            VendorLedgerEntry::create([
+            $entry = VendorLedgerEntry::create([
                 'vendor_id' => $this->vendor->id,
                 'type' => 'credit',
                 'amount' => $this->entryAmount,
@@ -182,6 +187,8 @@ new #[Layout('layouts.tenant')] class extends Component
                 'entry_date' => $this->entryDate,
                 'created_by' => auth()->id(),
             ]);
+
+            $this->storeReceiptProof($entry);
 
             $this->adjustPurchaseOrderPaidAmount($this->entryPurchaseOrderId, $this->entryDirection, $this->entryAmount, 1);
 
@@ -254,7 +261,11 @@ new #[Layout('layouts.tenant')] class extends Component
     public function entries()
     {
         return $this->vendor->ledgerEntries()
-            ->with(['revisions.editor', 'revisions.bank', 'reference', 'purchaseOrder', 'bank'])
+            ->with([
+                'revisions.editor', 'revisions.bank', 'purchaseOrder', 'bank', 'media',
+                // Only a PurchaseOrder reference carries a receipt proof.
+                'reference' => fn ($morphTo) => $morphTo->morphWith([PurchaseOrder::class => ['media']]),
+            ])
             ->orderBy('entry_date')
             ->orderBy('id')
             ->get();
@@ -390,7 +401,11 @@ new #[Layout('layouts.tenant')] class extends Component
                             <x-text-input type="date" wire:model="entryDate" class="mt-1 block w-full" />
                             <x-input-error :messages="$errors->get('entryDate')" class="mt-1" />
                         </div>
-                        <x-payment-method-select method-model="entryPaymentMode" bank-model="entryBankId" class="sm:col-span-2" />
+                        @php($editingEntry = $this->editingEntryId ? $this->entries->firstWhere('id', $this->editingEntryId) : null)
+                        @php($existingProof = $this->receiptProofCleared ? null : $editingEntry?->receiptProof())
+                        <x-payment-method-select method-model="entryPaymentMode" bank-model="entryBankId" class="sm:col-span-2"
+                            :existing-proof="$existingProof"
+                            :proof-url="$existingProof ? route('tenant.receipt-proof', ['media' => $existingProof]) : null" />
                         <div class="sm:col-span-2">
                             <x-input-label value="Description" />
                             <x-text-input wire:model="entryDescription" placeholder="e.g. Paid off PO-260906-1234 balance" class="mt-1 block w-full" />
@@ -451,6 +466,7 @@ new #[Layout('layouts.tenant')] class extends Component
                                     @if ($entry->paymentModeLabel())
                                         <span class="text-xs text-gray-400">({{ $entry->paymentModeLabel() }})</span>
                                     @endif
+                                    <x-receipt-proof-link :proof="$entry->resolvedReceiptProof()" :missing="$entry->needsReceiptProof()" class="ml-1" />
                                     @if ($entry->isManual())
                                         <span class="ml-1.5 inline-flex items-center rounded-full bg-gray-100 dark:bg-gray-700 px-2 py-0.5 text-xs font-medium text-gray-500 dark:text-gray-400">Manual</span>
                                     @endif

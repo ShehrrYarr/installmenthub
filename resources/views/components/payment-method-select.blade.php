@@ -3,6 +3,13 @@
     'bankModel',
     'label' => 'Payment Method',
     'withCredit' => false,
+    // A bank transfer leaves a slip. Living here rather than on each form
+    // means every screen that can say "Bank" asks for the proof the same way.
+    'withReceiptProof' => true,
+    'receiptProofModel' => 'receiptProof',
+    'existingProof' => null,
+    'proofUrl' => null,
+    'removeProofMethod' => 'removeReceiptProof',
 ])
 
 @php
@@ -72,6 +79,36 @@
                 @endforeach
             </select>
             <p x-show="selectedBank && selectedBank.details" x-cloak class="mt-1 text-xs text-gray-400" x-text="selectedBank?.details"></p>
+
+            @if ($withReceiptProof)
+                @php($pending = $this->{$receiptProofModel} ?? null)
+                <div class="mt-3">
+                    <div class="flex items-baseline justify-between gap-2">
+                        <span class="text-xs font-medium text-gray-600 dark:text-gray-300">Receipt / proof of transfer</span>
+                        <span class="text-[11px] text-gray-400">optional · JPG, PNG or PDF, max 4MB</span>
+                    </div>
+
+                    @if ($existingProof)
+                        <div class="mt-1 flex items-center gap-2 rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2">
+                            <x-tenant-icon name="paper-clip" class="h-4 w-4 shrink-0 text-gray-400" />
+                            <a href="{{ $proofUrl }}" target="_blank" class="min-w-0 flex-1 truncate text-sm text-walnut-600 hover:underline dark:text-walnut-400">{{ $existingProof->file_name }}</a>
+                            <button type="button" wire:click="{{ $removeProofMethod }}" class="shrink-0 text-xs font-medium text-rose-600 hover:underline">Remove</button>
+                        </div>
+                    @else
+                        <input type="file" wire:model="{{ $receiptProofModel }}" accept="image/png,image/jpeg,image/webp,application/pdf"
+                            class="mt-1 block w-full text-sm text-gray-600 dark:text-gray-300 file:mr-3 file:rounded-lg file:border-0 file:bg-sky-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-sky-700 hover:file:bg-sky-100 dark:file:bg-sky-900/40 dark:file:text-sky-200">
+                        <p wire:loading wire:target="{{ $receiptProofModel }}" class="mt-1 text-xs text-gray-400">Uploading…</p>
+                        @if ($pending)
+                            <p wire:loading.remove wire:target="{{ $receiptProofModel }}" class="mt-1 flex items-center gap-1.5 text-xs text-emerald-600">
+                                <x-tenant-icon name="check-circle" class="h-3.5 w-3.5" />
+                                {{ $pending->getClientOriginalName() }} ready to attach
+                            </p>
+                        @endif
+                    @endif
+
+                    <x-input-error :messages="$errors->get($receiptProofModel)" class="mt-1" />
+                </div>
+            @endif
         </div>
     @endif
 

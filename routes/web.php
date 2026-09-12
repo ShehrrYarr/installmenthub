@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\CollectionBookPrintController;
 use App\Http\Controllers\CustomerReceiptController;
+use App\Http\Controllers\ReceiptProofController;
 use App\Http\Controllers\ThermalReceiptController;
 use App\Models\Shop;
 use Illuminate\Support\Facades\Auth;
@@ -100,6 +101,10 @@ Route::middleware(['auth', 'tenant.resolve'])
         Volt::route('settings/staff', 'settings.staff')->name('settings.staff');
         Volt::route('settings/banks', 'settings.banks')->name('settings.banks');
         Volt::route('settings/emi', 'settings.emi')->name('settings.emi');
+
+        // Bank slips live on the private disk; the controller decides who may
+        // look at each one.
+        Route::get('receipt-proofs/{media}', ReceiptProofController::class)->name('receipt-proof');
     });
 
 // Customer portal — /{shop}/customer/*. Read-only views of a customer's own
@@ -124,6 +129,7 @@ Route::middleware(['customer.tenant'])
             Volt::route('ledger', 'customer.ledger')->name('ledger');
             Volt::route('password', 'customer.password')->name('password');
             Route::get('receipts/{payment}', CustomerReceiptController::class)->name('receipt');
+            Route::get('receipt-proofs/{media}', ReceiptProofController::class)->name('receipt-proof');
         });
     });
 
