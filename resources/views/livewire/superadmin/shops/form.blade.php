@@ -128,10 +128,19 @@ new #[Layout('layouts.super-admin')] class extends Component
         }
 
         DB::transaction(function () {
+            // EMI and penalty settings belong to the shop once it exists
+            // (Settings -> EMI Settings). Writable here only at provisioning,
+            // so a running shop's numbers can't be overwritten from this form,
+            // tampered snapshot included.
+            $shopOwnedFields = [
+                'default_interest_rate', 'default_processing_fee',
+                'penalty_type', 'penalty_rate', 'grace_period_days',
+            ];
+
             $data = collect($this->all())->only([
                 'name', 'slug', 'phone', 'email', 'address', 'city', 'subscription_status', 'billing_cycle',
-                'monthly_fee', 'annual_fee', 'default_interest_rate', 'default_processing_fee',
-                'penalty_type', 'penalty_rate', 'grace_period_days',
+                'monthly_fee', 'annual_fee',
+                ...($this->shop ? [] : $shopOwnedFields),
             ])->toArray();
 
             $paidUpfront = (int) $this->annual_fee > 0 && ! $this->shop;
@@ -336,32 +345,59 @@ new #[Layout('layouts.super-admin')] class extends Component
         @endif
 
         <div class="rounded-2xl border border-white/40 dark:border-gray-700/60 bg-white/70 dark:bg-gray-800/60 backdrop-blur-xl shadow-lg shadow-gray-900/5 p-5 space-y-4">
-            <h3 class="font-semibold text-gray-900 dark:text-white">EMI & Penalty Defaults</h3>
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                    <label class="text-sm font-medium text-gray-700 dark:text-gray-300">Default Interest Rate (%)</label>
-                    <input type="number" step="0.01" wire:model="default_interest_rate" class="mt-1 block w-full rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-white shadow-sm">
-                </div>
-                <div>
-                    <label class="text-sm font-medium text-gray-700 dark:text-gray-300">Default Processing Fee</label>
-                    <input type="number" step="1" wire:model="default_processing_fee" class="mt-1 block w-full rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-white shadow-sm">
-                </div>
-                <div>
-                    <label class="text-sm font-medium text-gray-700 dark:text-gray-300">Penalty Type</label>
-                    <select wire:model="penalty_type" class="mt-1 block w-full rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-white shadow-sm">
-                        <option value="daily">Daily</option>
-                        <option value="fixed">Fixed</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="text-sm font-medium text-gray-700 dark:text-gray-300">Penalty Rate</label>
-                    <input type="number" step="1" wire:model="penalty_rate" class="mt-1 block w-full rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-white shadow-sm">
-                </div>
-                <div>
-                    <label class="text-sm font-medium text-gray-700 dark:text-gray-300">Grace Period (days)</label>
-                    <input type="number" wire:model="grace_period_days" class="mt-1 block w-full rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-white shadow-sm">
-                </div>
+            <div>
+                <h3 class="font-semibold text-gray-900 dark:text-white">EMI &amp; Penalty Defaults</h3>
+                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                    @if ($shop)
+                        The shop manages these itself under Settings &rarr; EMI Settings. Shown here so you can see what it is running on.
+                    @else
+                        Starting values for the new shop. Once it is provisioned, its Shop Admin manages them under Settings &rarr; EMI Settings.
+                    @endif
+                </p>
             </div>
+
+            @if ($shop)
+                <dl class="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
+                    @foreach ([
+                        'Default Interest Rate' => $shop->default_interest_rate . '%',
+                        'Default Processing Fee' => 'Rs. ' . number_format((float) $shop->default_processing_fee, 0),
+                        'Penalty Type' => ucfirst($shop->penalty_type),
+                        'Penalty Rate' => 'Rs. ' . number_format((float) $shop->penalty_rate, 0) . ($shop->penalty_type === 'daily' ? ' per day' : ''),
+                        'Grace Period' => $shop->grace_period_days . ' ' . \Illuminate\Support\Str::plural('day', $shop->grace_period_days),
+                    ] as $label => $value)
+                        <div class="rounded-xl bg-gray-50 dark:bg-gray-900/40 px-4 py-3">
+                            <dt class="text-xs text-gray-500 dark:text-gray-400">{{ $label }}</dt>
+                            <dd class="mt-0.5 font-medium text-gray-900 dark:text-white">{{ $value }}</dd>
+                        </div>
+                    @endforeach
+                </dl>
+            @else
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="text-sm font-medium text-gray-700 dark:text-gray-300">Default Interest Rate (%)</label>
+                        <input type="number" step="0.01" wire:model="default_interest_rate" class="mt-1 block w-full rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-white shadow-sm">
+                    </div>
+                    <div>
+                        <label class="text-sm font-medium text-gray-700 dark:text-gray-300">Default Processing Fee</label>
+                        <input type="number" step="1" wire:model="default_processing_fee" class="mt-1 block w-full rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-white shadow-sm">
+                    </div>
+                    <div>
+                        <label class="text-sm font-medium text-gray-700 dark:text-gray-300">Penalty Type</label>
+                        <select wire:model="penalty_type" class="mt-1 block w-full rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-white shadow-sm">
+                            <option value="daily">Daily</option>
+                            <option value="fixed">Fixed</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="text-sm font-medium text-gray-700 dark:text-gray-300">Penalty Rate</label>
+                        <input type="number" step="1" wire:model="penalty_rate" class="mt-1 block w-full rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-white shadow-sm">
+                    </div>
+                    <div>
+                        <label class="text-sm font-medium text-gray-700 dark:text-gray-300">Grace Period (days)</label>
+                        <input type="number" wire:model="grace_period_days" class="mt-1 block w-full rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-white shadow-sm">
+                    </div>
+                </div>
+            @endif
         </div>
 
         <div class="flex items-center gap-3">
