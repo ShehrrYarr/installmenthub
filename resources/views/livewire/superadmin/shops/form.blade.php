@@ -361,6 +361,7 @@ new #[Layout('layouts.super-admin')] class extends Component
                     @foreach ([
                         'Default Interest Rate' => $shop->default_interest_rate . '%',
                         'Default Processing Fee' => 'Rs. ' . number_format((float) $shop->default_processing_fee, 0),
+                        'Penalties' => $shop->penaltiesEnabled() ? 'Enabled' : 'Disabled',
                         'Penalty Type' => ucfirst($shop->penalty_type),
                         'Penalty Rate' => 'Rs. ' . number_format((float) $shop->penalty_rate, 0) . ($shop->penalty_type === 'daily' ? ' per day' : ''),
                         'Grace Period' => $shop->grace_period_days . ' ' . \Illuminate\Support\Str::plural('day', $shop->grace_period_days),

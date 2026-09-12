@@ -14,6 +14,10 @@ use Illuminate\Support\Carbon;
  * period, then (re)computes penalty_amount so the run is idempotent — it can
  * fire every day without double-charging. 'daily' penalties grow with the days
  * elapsed past the grace period; 'fixed' penalties are a flat one-time charge.
+ *
+ * A shop with penalties switched off still gets its overdue flags — the
+ * dashboard, Collection Book and customer portal all read them — but nothing
+ * is charged, and already-billed penalties are left alone.
  */
 class ApplyOverduePenalties extends Command
 {
@@ -36,22 +40,32 @@ class ApplyOverduePenalties extends Command
                         // on the (earlier) due date to get a positive "days late" count.
                         $daysLate = Carbon::parse($schedule->due_date)->diffInDays($today);
 
-                        if ($daysLate <= $shop->grace_period_days) {
+                        // With penalties off the grace period has nothing to
+                        // delay, so an unpaid instalment is overdue the day after
+                        // it was due.
+                        if ($daysLate <= $shop->effectiveGraceDays()) {
                             continue;
                         }
 
-                        $effectiveDaysLate = $daysLate - $shop->grace_period_days;
+                        // Charges already on a schedule are money the customer
+                        // owes; switching penalties off stops new ones rather
+                        // than writing off what's been billed. So penalty_amount
+                        // and total_due are left exactly as they are.
+                        if ($shop->penaltiesEnabled()) {
+                            $effectiveDaysLate = $daysLate - $shop->grace_period_days;
 
-                        $penalty = $shop->penalty_type === 'daily'
-                            ? bcmul((string) $shop->penalty_rate, (string) $effectiveDaysLate, 2)
-                            : (string) $shop->penalty_rate;
+                            $penalty = $shop->penalty_type === 'daily'
+                                ? bcmul((string) $shop->penalty_rate, (string) $effectiveDaysLate, 2)
+                                : (string) $shop->penalty_rate;
 
-                        $schedule->penalty_amount = $penalty;
-                        $schedule->total_due = bcadd(
-                            bcadd((string) $schedule->principal_component, (string) $schedule->interest_component, 2),
-                            $penalty,
-                            2
-                        );
+                            $schedule->penalty_amount = $penalty;
+                            $schedule->total_due = bcadd(
+                                bcadd((string) $schedule->principal_component, (string) $schedule->interest_component, 2),
+                                $penalty,
+                                2
+                            );
+                        }
+
                         $schedule->status = 'overdue';
                         $schedule->save();
 

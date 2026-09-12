@@ -66,7 +66,9 @@ class CollectionBook
         $snapshot = $isCurrentMonth ? now() : $endOfMonth->copy()->endOfDay();
 
         $shop = Tenant::current();
-        $graceDays = $shop?->grace_period_days ?? 0;
+        // Matches the overdue sweep: grace only holds the flag back while
+        // penalties are actually being charged.
+        $graceDays = $shop?->effectiveGraceDays() ?? 0;
 
         $scheduleQuery = fn ($query) => $query->where('due_date', '<=', $endOfMonth->toDateString());
 

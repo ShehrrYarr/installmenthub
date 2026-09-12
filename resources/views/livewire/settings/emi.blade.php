@@ -19,6 +19,8 @@ new #[Layout('layouts.tenant')] class extends Component
     #[Validate('required|numeric|min:0')]
     public string $default_processing_fee = '0';
 
+    public bool $penalties_enabled = true;
+
     #[Validate('required|in:daily,fixed')]
     public string $penalty_type = 'daily';
 
@@ -42,6 +44,7 @@ new #[Layout('layouts.tenant')] class extends Component
         // the trailing zeros are only noise in the box.
         $this->default_interest_rate = $this->trimDecimal($shop?->default_interest_rate);
         $this->default_processing_fee = $this->trimDecimal($shop?->default_processing_fee);
+        $this->penalties_enabled = (bool) ($shop?->penalties_enabled ?? true);
         $this->penalty_type = $shop?->penalty_type ?? 'daily';
         $this->penalty_rate = $this->trimDecimal($shop?->penalty_rate);
         $this->grace_period_days = (int) ($shop?->grace_period_days ?? 0);
@@ -61,7 +64,7 @@ new #[Layout('layouts.tenant')] class extends Component
         $shop = Tenant::current();
         abort_unless($shop, 403);
 
-        $shop->update($validated);
+        $shop->update([...$validated, 'penalties_enabled' => $this->penalties_enabled]);
 
         session()->flash('status', 'EMI and penalty defaults updated — applies to agreements created from now on.');
     }
@@ -227,17 +230,35 @@ new #[Layout('layouts.tenant')] class extends Component
         </div>
 
         <div class="rounded-2xl border border-white/40 dark:border-gray-700/60 bg-white/70 dark:bg-gray-800/60 backdrop-blur-xl shadow-lg shadow-gray-900/5 p-5">
-            <h3 class="font-semibold text-gray-900 dark:text-white mb-1">Late Payment Penalty</h3>
-            <p class="text-sm text-gray-500 dark:text-gray-400 mb-5">
-                Charged by the nightly overdue sweep once an instalment is past due by more than the grace period.
-                Set the rate to 0 to charge nothing.
+            <div class="flex items-start justify-between gap-4">
+                <div>
+                    <h3 class="font-semibold text-gray-900 dark:text-white mb-1">Late Payment Penalty</h3>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">
+                        Charged by the nightly overdue sweep once an instalment is past due by more than the grace period.
+                    </p>
+                </div>
+
+                <button type="button" wire:click="$toggle('penalties_enabled')" role="switch"
+                    :aria-checked="@js($penalties_enabled)"
+                    class="relative mt-1 inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition focus:outline-none focus:ring-2 focus:ring-walnut-400 focus:ring-offset-2 {{ $penalties_enabled ? 'bg-walnut-600' : 'bg-gray-300 dark:bg-gray-600' }}">
+                    <span class="sr-only">Charge late payment penalties</span>
+                    <span class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow transition {{ $penalties_enabled ? 'translate-x-5' : 'translate-x-0' }}"></span>
+                </button>
+            </div>
+
+            <p class="mt-3 text-sm {{ $penalties_enabled ? 'text-emerald-700 dark:text-emerald-400' : 'text-gray-500 dark:text-gray-400' }}">
+                @if ($penalties_enabled)
+                    Penalties are <span class="font-medium">on</span> — overdue instalments accrue a charge.
+                @else
+                    Penalties are <span class="font-medium">off</span>. Instalments are still flagged overdue, from the day after they were due, but nothing is charged. Penalties already billed stay on the customer's account.
+                @endif
             </p>
 
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div class="mt-5 grid grid-cols-1 sm:grid-cols-3 gap-4 {{ $penalties_enabled ? '' : 'opacity-50' }}">
                 <div>
                     <x-input-label for="penalty_type" value="Penalty Type" />
-                    <select id="penalty_type" wire:model.live="penalty_type"
-                        class="mt-1 block w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white shadow-sm focus:border-walnut-400 focus:ring-walnut-400">
+                    <select id="penalty_type" wire:model.live="penalty_type" @disabled(! $penalties_enabled)
+                        class="mt-1 block w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white shadow-sm focus:border-walnut-400 focus:ring-walnut-400 disabled:cursor-not-allowed">
                         <option value="daily">Daily — per day late</option>
                         <option value="fixed">Fixed — once per instalment</option>
                     </select>
@@ -245,13 +266,13 @@ new #[Layout('layouts.tenant')] class extends Component
                 </div>
                 <div>
                     <x-input-label for="penalty_rate" value="Penalty Rate (Rs.)" />
-                    <x-text-input id="penalty_rate" type="number" step="1" min="0" wire:model="penalty_rate" class="mt-1 block w-full" />
+                    <x-text-input id="penalty_rate" type="number" step="1" min="0" wire:model="penalty_rate" :disabled="! $penalties_enabled" class="mt-1 block w-full disabled:cursor-not-allowed" />
                     <p class="mt-1 text-xs text-gray-400">{{ $penalty_type === 'daily' ? 'Charged for each day past the grace period.' : 'Charged once on an overdue instalment.' }}</p>
                     <x-input-error :messages="$errors->get('penalty_rate')" class="mt-1" />
                 </div>
                 <div>
                     <x-input-label for="grace_period_days" value="Grace Period (days)" />
-                    <x-text-input id="grace_period_days" type="number" step="1" min="0" max="255" wire:model="grace_period_days" class="mt-1 block w-full" />
+                    <x-text-input id="grace_period_days" type="number" step="1" min="0" max="255" wire:model="grace_period_days" :disabled="! $penalties_enabled" class="mt-1 block w-full disabled:cursor-not-allowed" />
                     <p class="mt-1 text-xs text-gray-400">Days after the due date before a penalty applies.</p>
                     <x-input-error :messages="$errors->get('grace_period_days')" class="mt-1" />
                 </div>

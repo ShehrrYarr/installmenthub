@@ -36,6 +36,7 @@ class Shop extends Model
         'emi_price_basis',
         'emi_first_installment',
         'penalty_type',
+        'penalties_enabled',
         'penalty_rate',
         'grace_period_days',
         'is_active',
@@ -54,6 +55,7 @@ class Shop extends Model
             'default_interest_rate' => 'decimal:2',
             'default_processing_fee' => 'decimal:2',
             'penalty_rate' => 'decimal:2',
+            'penalties_enabled' => 'boolean',
             'is_active' => 'boolean',
         ];
     }
@@ -137,6 +139,23 @@ class Shop extends Model
     public function isSuspended(): bool
     {
         return $this->subscription_status === 'suspended';
+    }
+
+    /**
+     * Late fees are opt-in per shop. With them off an overdue instalment is
+     * still flagged overdue — dashboards and the Collection Book depend on
+     * that — it simply stops accruing a charge, and the grace period (which
+     * only exists to delay a penalty) no longer holds the flag back either.
+     */
+    public function penaltiesEnabled(): bool
+    {
+        return (bool) $this->penalties_enabled;
+    }
+
+    /** Grace only means something while penalties are being charged. */
+    public function effectiveGraceDays(): int
+    {
+        return $this->penaltiesEnabled() ? (int) $this->grace_period_days : 0;
     }
 
     /**
