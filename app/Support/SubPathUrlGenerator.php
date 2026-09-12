@@ -17,11 +17,26 @@ use Illuminate\Routing\UrlGenerator;
  */
 class SubPathUrlGenerator extends UrlGenerator
 {
+    /**
+     * Relatively-signed routes must NOT be prefixed here.
+     *
+     * Laravel signs the relative path and later validates the signature
+     * against `$request->path()`, which under the Alias already has "/sih"
+     * stripped — so prefixing the signed path guarantees a mismatch and a 401
+     * on every upload. Livewire re-absolutizes these with URL::to(), which
+     * picks the sub-path back up from the request root, so the browser still
+     * hits the right URL.
+     */
+    private const RELATIVELY_SIGNED_ROUTES = [
+        'livewire.upload-file',
+        'livewire.preview-file',
+    ];
+
     public function toRoute($route, $parameters, $absolute)
     {
         $uri = parent::toRoute($route, $parameters, $absolute);
 
-        if (! $absolute) {
+        if (! $absolute && ! in_array($route->getName(), self::RELATIVELY_SIGNED_ROUTES, true)) {
             $uri = $this->withSubPath($uri);
         }
 
