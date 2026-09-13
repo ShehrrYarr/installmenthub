@@ -736,14 +736,14 @@ new #[Layout('layouts.tenant')] class extends Component
 
                     <div wire:key="agreement-item-{{ $index }}" class="rounded-xl bg-gray-50 dark:bg-gray-900/40 p-3">
                         <div class="grid grid-cols-1 sm:grid-cols-12 gap-3">
-                            <div class="sm:col-span-7">
+                            <div class="sm:col-span-8">
                                 <x-input-label value="Product" />
                                 <x-search-select search-method="searchProducts" model="items.{{ $index }}.product_id"
                                     placeholder="Search by name, SKU, or brand…" class="mt-1" />
                                 <x-input-error :messages="$errors->get('items.'.$index.'.product_id')" class="mt-1" />
                             </div>
 
-                            <div class="sm:col-span-4">
+                            <div class="sm:col-span-3">
                                 <x-input-label value="Price" />
                                 <x-text-input type="number" step="1" min="1" wire:model.live="items.{{ $index }}.unit_price" class="mt-1 block w-full" />
                                 <x-input-error :messages="$errors->get('items.'.$index.'.unit_price')" class="mt-1" />
@@ -761,7 +761,7 @@ new #[Layout('layouts.tenant')] class extends Component
                             </div>
 
                             @if ($product?->is_serialized)
-                                <div class="sm:col-span-12" wire:key="serial-field-{{ $index }}-{{ $item['product_id'] }}">
+                                <div class="sm:col-span-12 mt-1" wire:key="serial-field-{{ $index }}-{{ $item['product_id'] }}">
                                     <x-input-label value="Serial / IMEI" />
                                     <x-local-select
                                         :options="$serials->map(fn ($serial) => ['id' => $serial->id, 'label' => $serial->serial_number])->values()->all()"
@@ -773,7 +773,7 @@ new #[Layout('layouts.tenant')] class extends Component
                                     @endif
                                 </div>
                             @elseif ($batches->isNotEmpty())
-                                <div class="sm:col-span-12" wire:key="batch-field-{{ $index }}-{{ $item['product_id'] }}">
+                                <div class="sm:col-span-12 mt-1" wire:key="batch-field-{{ $index }}-{{ $item['product_id'] }}">
                                     <x-input-label value="Purchase Batch" />
                                     <x-local-select
                                         :options="$batches->map(fn ($batch) => [
