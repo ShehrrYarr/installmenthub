@@ -717,13 +717,10 @@ new #[Layout('layouts.tenant')] class extends Component
             {{-- One line per unit. Two of the same phone means two lines —
                  that is also how two serial numbers get recorded. --}}
             <div class="space-y-3 border-t border-gray-100 dark:border-gray-700 pt-4">
-                <div class="flex items-center justify-between">
-                    <p class="text-sm font-medium text-gray-700 dark:text-gray-300">
-                        Products
-                        <span class="font-normal text-gray-400">({{ count($items) }} {{ \Illuminate\Support\Str::plural('item', count($items)) }})</span>
-                    </p>
-                    <button type="button" wire:click="addItem" class="text-sm font-medium text-walnut-600 hover:text-walnut-400 dark:text-walnut-400">+ Add Product</button>
-                </div>
+                <p class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Products
+                    <span class="font-normal text-gray-400">({{ count($items) }} {{ \Illuminate\Support\Str::plural('item', count($items)) }})</span>
+                </p>
 
                 @error('items') <p class="text-sm text-rose-600">{{ $message }}</p> @enderror
 
@@ -789,6 +786,12 @@ new #[Layout('layouts.tenant')] class extends Component
                         </div>
                     </div>
                 @endforeach
+
+                <button type="button" wire:click="addItem"
+                    class="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-gray-300 px-4 py-3 text-sm font-semibold text-gray-600 transition hover:border-walnut-400 hover:bg-walnut-50 hover:text-walnut-600 dark:border-gray-600 dark:text-gray-300 dark:hover:border-walnut-400 dark:hover:bg-walnut-900/30">
+                    <x-tenant-icon name="plus" class="h-4 w-4" />
+                    Add another product
+                </button>
             </div>
         </div>
 
