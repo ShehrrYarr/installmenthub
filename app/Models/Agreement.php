@@ -111,10 +111,13 @@ class Agreement extends Model
      */
     public function productSummary(): ?string
     {
+        // One line per unit, so two of the same phone are two items. Collapse
+        // them to "Samsung Galaxy A15 x2" rather than repeating the name.
         $names = $this->items
             ->map(fn (AgreementItem $item) => $item->product?->name)
             ->filter()
-            ->unique()
+            ->countBy()
+            ->map(fn (int $count, string $name) => $count > 1 ? "{$name} x{$count}" : $name)
             ->values();
 
         return $names->isEmpty() ? null : $names->implode(', ');

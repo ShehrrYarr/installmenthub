@@ -31,7 +31,7 @@ new #[Layout('layouts.customer')] class extends Component
     <a href="{{ route('customer.agreements', ['shop' => $shop]) }}" wire:navigate class="text-sm text-gray-500 hover:text-gray-700">← All agreements</a>
     <div class="mt-2 flex flex-wrap items-center justify-between gap-2">
         <div>
-            <h1 class="text-xl font-semibold text-gray-900">{{ $agreement->items->first()?->product->name ?? 'Agreement' }}</h1>
+            <h1 class="text-xl font-semibold text-gray-900">{{ $agreement->productSummary() ?? 'Agreement' }}</h1>
             <p class="text-sm text-gray-500">{{ $agreement->agreement_number }}</p>
         </div>
         <x-status-badge :status="$agreement->status" />
@@ -70,10 +70,15 @@ new #[Layout('layouts.customer')] class extends Component
                 <dt class="text-xs text-gray-500">Remaining</dt>
                 <dd class="mt-0.5 font-semibold text-gray-900">Rs. {{ number_format((float) $agreement->outstandingBalance(), 0) }}</dd>
             </div>
-            @if ($serial = $agreement->items->first()?->productSerial)
+@php($serials = $agreement->items->map->productSerial->filter())
+            @if ($serials->isNotEmpty())
                 <div class="col-span-2">
-                    <dt class="text-xs text-gray-500">Serial / IMEI</dt>
-                    <dd class="mt-0.5 font-mono text-xs text-gray-700">{{ $serial->serial_number }}</dd>
+                    <dt class="text-xs text-gray-500">{{ \Illuminate\Support\Str::plural('Serial / IMEI', $serials->count()) }}</dt>
+                    <dd class="mt-0.5 space-y-0.5 font-mono text-xs text-gray-700">
+                        @foreach ($serials as $serial)
+                            <p>{{ $serial->serial_number }}</p>
+                        @endforeach
+                    </dd>
                 </div>
             @endif
         </dl>

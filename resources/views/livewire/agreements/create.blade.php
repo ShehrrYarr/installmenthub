@@ -29,18 +29,24 @@ new #[Layout('layouts.tenant')] class extends Component
     #[Validate('required|exists:customers,id')]
     public ?int $customer_id = null;
 
-    #[Validate('required|exists:products,id')]
-    public ?int $product_id = null;
-
-    public ?int $product_serial_id = null;
-
-    public ?int $purchase_order_item_id = null;
+    /**
+     * One line per unit sold. Quantity is fixed at 1 — two of the same phone
+     * means two lines, which is also the only way two serial numbers can be
+     * recorded against one agreement.
+     *
+     * @var array<int, array{product_id: ?int, product_serial_id: ?int, purchase_order_item_id: ?int, unit_price: string}>
+     */
+    public array $items = [];
 
     #[Validate('required|exists:users,id')]
     public ?int $salesman_id = null;
 
     #[Validate('required|integer|min:1')]
     public string $productPrice = '0';
+
+    // Product Price follows the line total until someone types their own
+    // figure — a bundle is often sold for a round number.
+    public bool $productPriceTouched = false;
 
     public string $downPaymentType = 'fixed';
 
@@ -115,16 +121,122 @@ new #[Layout('layouts.tenant')] class extends Component
         $this->processingFee = $this->wholeRupees($shop?->default_processing_fee ?? '0');
         $this->startDate = now()->toDateString();
         $this->salesman_id = auth()->user()->hasRole('Salesman') ? auth()->id() : null;
+        $this->items = [$this->blankItem()];
     }
 
-    public function updatedProductId(): void
+    /** @return array{product_id: ?int, product_serial_id: ?int, purchase_order_item_id: ?int, unit_price: string} */
+    private function blankItem(): array
     {
-        $product = Product::find($this->product_id);
-        $basis = \App\Support\Tenant::current()?->emi_price_basis ?? 'selling';
-        $this->productPrice = $product ? $this->wholeRupees($basis === 'cost' ? $product->cost_price : $product->cash_price) : '0';
-        $this->product_serial_id = null;
-        $this->purchase_order_item_id = null;
+        return ['product_id' => null, 'product_serial_id' => null, 'purchase_order_item_id' => null, 'unit_price' => '0'];
+    }
+
+    public function addItem(): void
+    {
+        $this->items[] = $this->blankItem();
+    }
+
+    public function removeItem(int $index): void
+    {
+        if (count($this->items) <= 1) {
+            return;
+        }
+
+        unset($this->items[$index]);
+        $this->items = array_values($this->items);
+        $this->syncProductPrice();
+    }
+
+    /**
+     * Picking a product seeds that line's price; picking a specific unit or
+     * batch replaces it with what that stock actually cost, since we then know
+     * which purchase it came from.
+     */
+    public function updatedItems(mixed $value, string $key): void
+    {
+        [$index, $field] = array_pad(explode('.', $key, 2), 2, null);
+        $index = (int) $index;
+
+        if ($field === 'product_id') {
+            $this->items[$index]['product_serial_id'] = null;
+            $this->items[$index]['purchase_order_item_id'] = null;
+            $this->items[$index]['unit_price'] = $this->priceFromProduct(Product::find($value));
+        }
+
+        if ($field === 'product_serial_id') {
+            $batch = $this->serialsFor($index)->firstWhere('id', (int) $value)?->purchaseOrderItem;
+            $this->items[$index]['unit_price'] = $this->priceFromBatch($batch) ?? $this->items[$index]['unit_price'];
+        }
+
+        if ($field === 'purchase_order_item_id') {
+            $batch = $this->batchesFor($index)->firstWhere('id', (int) $value);
+            $this->items[$index]['unit_price'] = $this->priceFromBatch($batch) ?? $this->items[$index]['unit_price'];
+        }
+
+        $this->syncProductPrice();
+    }
+
+    private function priceFromProduct(?Product $product): string
+    {
+        if (! $product) {
+            return '0';
+        }
+
+        return $this->wholeRupees($this->priceBasis() === 'cost' ? $product->cost_price : $product->cash_price);
+    }
+
+    private function priceFromBatch(?PurchaseOrderItem $batch): ?string
+    {
+        if (! $batch) {
+            return null;
+        }
+
+        return $this->wholeRupees($this->priceBasis() === 'cost' ? $batch->cost_price : $batch->selling_cash_price);
+    }
+
+    private function priceBasis(): string
+    {
+        return Tenant::current()?->emi_price_basis ?? 'selling';
+    }
+
+    /** What the lines add up to — the figure Product Price follows. */
+    #[Computed]
+    public function lineTotal(): string
+    {
+        return array_reduce(
+            $this->items,
+            fn (string $carry, array $item) => bcadd($carry, $this->numeric($item['unit_price'] ?? '0'), 2),
+            '0.00'
+        );
+    }
+
+    /** True once the bundle is being sold for something other than the sum of its parts. */
+    #[Computed]
+    public function priceOverridden(): bool
+    {
+        return bccomp($this->numeric($this->productPrice), $this->lineTotal, 2) !== 0;
+    }
+
+    private function syncProductPrice(): void
+    {
+        if ($this->productPriceTouched) {
+            return;
+        }
+
+        $this->productPrice = $this->wholeRupees($this->lineTotal);
         $this->applyDefaultDownPayment();
+    }
+
+    public function updatedProductPrice(): void
+    {
+        $this->productPriceTouched = true;
+        $this->applyDefaultDownPayment();
+    }
+
+    /** Puts Product Price back in step with the lines after a manual override. */
+    public function resetProductPrice(): void
+    {
+        $this->productPriceTouched = false;
+        $this->syncProductPrice();
     }
 
     /**
@@ -168,34 +280,10 @@ new #[Layout('layouts.tenant')] class extends Component
         ];
     }
 
-    /** Picking a specific unit/batch means we know its actual purchase price — use that over the product's shop-wide default. */
-    private function applyBatchPrice(?PurchaseOrderItem $batch): void
-    {
-        if (! $batch) {
-            return;
-        }
-
-        $basis = \App\Support\Tenant::current()?->emi_price_basis ?? 'selling';
-        $this->productPrice = $this->wholeRupees($basis === 'cost' ? $batch->cost_price : $batch->selling_cash_price);
-        $this->applyDefaultDownPayment();
-    }
-
-    /** productPrice validates as `integer` — decimal-cast model attributes (e.g. "69999.00") fail that rule, so strip to a plain whole-rupee string. */
+    /** Prices validate as `integer` — decimal-cast model attributes (e.g. "69999.00") fail that rule, so strip to a plain whole-rupee string. */
     private function wholeRupees(string|float $value): string
     {
         return (string) (int) round((float) $value);
-    }
-
-    public function updatedProductSerialId(): void
-    {
-        $serial = $this->availableSerials->firstWhere('id', $this->product_serial_id);
-
-        $this->applyBatchPrice($serial?->purchaseOrderItem);
-    }
-
-    public function updatedPurchaseOrderItemId(): void
-    {
-        $this->applyBatchPrice($this->availableBatches->firstWhere('id', $this->purchase_order_item_id));
     }
 
     /** @return array<int, array{id: int, label: string, sublabel: string}> */
@@ -253,41 +341,68 @@ new #[Layout('layouts.tenant')] class extends Component
             ->orderBy('name')->get();
     }
 
-    #[Computed]
-    public function availableSerials()
+    public function productFor(int $index): ?Product
     {
-        if (! $this->product_id) {
-            return collect();
-        }
+        $id = $this->items[$index]['product_id'] ?? null;
 
-        return ProductSerial::where('product_id', $this->product_id)->where('status', 'in_stock')->get();
+        return $id ? Product::find($id) : null;
     }
 
     /**
-     * Purchase batches for this product that still have unsold stock — lets
-     * a non-serialized product (no individual IMEI to pick) still be sold
-     * against the specific vendor/price it was actually bought at.
+     * In-stock units for this line's product, minus any already picked on
+     * another line — the same phone can't be sold twice on one agreement.
      */
-    #[Computed]
-    public function availableBatches()
+    public function serialsFor(int $index)
     {
-        if (! $this->product_id) {
+        $productId = $this->items[$index]['product_id'] ?? null;
+
+        if (! $productId) {
             return collect();
         }
 
-        return PurchaseOrderItem::where('product_id', $this->product_id)
+        $takenElsewhere = collect($this->items)
+            ->except($index)
+            ->pluck('product_serial_id')
+            ->filter()
+            ->all();
+
+        return ProductSerial::where('product_id', $productId)
+            ->where('status', 'in_stock')
+            ->whereNotIn('id', $takenElsewhere ?: [0])
+            ->with('purchaseOrderItem')
+            ->get();
+    }
+
+    /**
+     * Purchase batches for this line's product that still have unsold stock —
+     * lets a non-serialized product (no individual IMEI to pick) still be sold
+     * against the specific vendor/price it was actually bought at.
+     *
+     * Units claimed by other lines of this same agreement count against the
+     * remaining stock too, so a batch with one unit left can't be put on two
+     * lines before anything is saved.
+     */
+    public function batchesFor(int $index)
+    {
+        $productId = $this->items[$index]['product_id'] ?? null;
+
+        if (! $productId) {
+            return collect();
+        }
+
+        $claimedHere = collect($this->items)
+            ->except($index)
+            ->pluck('purchase_order_item_id')
+            ->filter()
+            ->countBy();
+
+        return PurchaseOrderItem::where('product_id', $productId)
             ->with('purchaseOrder.vendor')
             ->withSum('agreementItems as sold_quantity', 'quantity')
             ->oldest()
             ->get()
-            ->filter(fn ($batch) => $batch->quantity - ($batch->sold_quantity ?? 0) > 0)
+            ->filter(fn ($batch) => $batch->quantity - ($batch->sold_quantity ?? 0) - ($claimedHere[$batch->id] ?? 0) > 0)
             ->values();
-    }
-
-    #[Computed]
-    public function selectedProduct(): ?Product
-    {
-        return $this->product_id ? Product::find($this->product_id) : null;
     }
 
     private function numeric(?string $value): string
@@ -358,6 +473,9 @@ new #[Layout('layouts.tenant')] class extends Component
     {
         $this->validate();
         $this->validate([
+            'items' => 'required|array|min:1',
+            'items.*.product_id' => 'required|exists:products,id',
+            'items.*.unit_price' => 'required|integer|min:1',
             'downPaymentMode' => PaymentMethod::methodRule(),
             'downPaymentBankId' => PaymentMethod::bankRule('downPaymentMode'),
             ...$this->receiptProofRules(),
@@ -377,17 +495,10 @@ new #[Layout('layouts.tenant')] class extends Component
         // id. Re-fetch each one through its tenant-scoped Eloquent model (which
         // does apply ShopScope) to make sure it actually belongs to this shop.
         $customer = Customer::find($this->customer_id);
-        $product = $this->selectedProduct;
         $salesman = User::where('shop_id', \App\Support\Tenant::id())->find($this->salesman_id);
 
         if (! $customer) {
             $this->addError('customer_id', 'Select a valid customer.');
-
-            return;
-        }
-
-        if (! $product) {
-            $this->addError('product_id', 'Select a valid product.');
 
             return;
         }
@@ -398,22 +509,48 @@ new #[Layout('layouts.tenant')] class extends Component
             return;
         }
 
-        if ($product->is_serialized && ! $this->product_serial_id) {
-            $this->addError('product_serial_id', 'Select a serial/IMEI unit for this product.');
+        $lines = [];
 
-            return;
-        }
+        foreach ($this->items as $index => $item) {
+            $product = $this->productFor($index);
 
-        if ($this->product_serial_id && ! $this->availableSerials->contains('id', $this->product_serial_id)) {
-            $this->addError('product_serial_id', 'That serial/IMEI unit is no longer available for this product.');
+            if (! $product) {
+                $this->addError("items.{$index}.product_id", 'Select a valid product.');
 
-            return;
-        }
+                return;
+            }
 
-        if ($this->purchase_order_item_id && ! $this->availableBatches->contains('id', $this->purchase_order_item_id)) {
-            $this->addError('purchase_order_item_id', 'That purchase batch is no longer available for this product.');
+            $serialId = $item['product_serial_id'] ?? null;
+            $batchId = $item['purchase_order_item_id'] ?? null;
 
-            return;
+            if ($product->is_serialized && ! $serialId) {
+                $this->addError("items.{$index}.product_serial_id", 'Select a serial/IMEI unit for this product.');
+
+                return;
+            }
+
+            // serialsFor()/batchesFor() already exclude anything claimed by
+            // another line, so this catches a duplicate pick as well as stock
+            // that sold while the form was open.
+            if ($serialId && ! $this->serialsFor($index)->contains('id', $serialId)) {
+                $this->addError("items.{$index}.product_serial_id", 'That serial/IMEI unit is no longer available.');
+
+                return;
+            }
+
+            if ($batchId && ! $this->batchesFor($index)->contains('id', $batchId)) {
+                $this->addError("items.{$index}.purchase_order_item_id", 'That purchase batch is no longer available.');
+
+                return;
+            }
+
+            $lines[] = [
+                'product_id' => $product->id,
+                'product_serial_id' => $serialId,
+                'purchase_order_item_id' => $serialId ? null : $batchId,
+                'quantity' => 1,
+                'unit_price' => $this->numeric($item['unit_price'] ?? '0'),
+            ];
         }
 
         if (bccomp($this->downPaymentAmount, $this->numeric($this->productPrice), 2) >= 0) {
@@ -424,7 +561,7 @@ new #[Layout('layouts.tenant')] class extends Component
 
         [$downPaymentMode, $downPaymentBankId] = PaymentMethod::toStorage($this->downPaymentMode, $this->downPaymentBankId);
 
-        $agreement = DB::transaction(function () use ($downPaymentMode, $downPaymentBankId) {
+        $agreement = DB::transaction(function () use ($downPaymentMode, $downPaymentBankId, $lines) {
             $calculator = $this->calculator;
             $schedule = $calculator->schedule($this->startDate, $this->firstDueNextMonth());
 
@@ -446,20 +583,15 @@ new #[Layout('layouts.tenant')] class extends Component
                 'first_due_date' => $schedule[0]['due_date'] ?? null,
             ]);
 
-            AgreementItem::create([
-                'agreement_id' => $agreement->id,
-                'product_id' => $this->product_id,
-                'product_serial_id' => $this->product_serial_id,
-                'purchase_order_item_id' => $this->product_serial_id ? null : $this->purchase_order_item_id,
-                'quantity' => 1,
-                'unit_price' => $this->numeric($this->productPrice),
-            ]);
+            foreach ($lines as $line) {
+                AgreementItem::create([...$line, 'agreement_id' => $agreement->id]);
 
-            if ($this->product_serial_id) {
-                ProductSerial::whereKey($this->product_serial_id)->update([
-                    'status' => 'sold',
-                    'sold_at' => now(),
-                ]);
+                if ($line['product_serial_id']) {
+                    ProductSerial::whereKey($line['product_serial_id'])->update([
+                        'status' => 'sold',
+                        'sold_at' => now(),
+                    ]);
+                }
             }
 
             foreach ($schedule as $row) {
@@ -580,39 +712,83 @@ new #[Layout('layouts.tenant')] class extends Component
                     </select>
                     <x-input-error :messages="$errors->get('salesman_id')" class="mt-1" />
                 </div>
-                <div>
-                    <x-input-label for="product_id" value="Product" />
-                    <x-search-select search-method="searchProducts" model="product_id"
-                        placeholder="Search by name, SKU, or brand…" class="mt-1" />
-                    <x-input-error :messages="$errors->get('product_id')" class="mt-1" />
+            </div>
+
+            {{-- One line per unit. Two of the same phone means two lines —
+                 that is also how two serial numbers get recorded. --}}
+            <div class="space-y-3 border-t border-gray-100 dark:border-gray-700 pt-4">
+                <div class="flex items-center justify-between">
+                    <p class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Products
+                        <span class="font-normal text-gray-400">({{ count($items) }} {{ \Illuminate\Support\Str::plural('item', count($items)) }})</span>
+                    </p>
+                    <button type="button" wire:click="addItem" class="text-sm font-medium text-walnut-600 hover:text-walnut-400 dark:text-walnut-400">+ Add Product</button>
                 </div>
 
-                @if ($this->selectedProduct?->is_serialized)
-                    <div wire:key="serial-field-{{ $product_id }}">
-                        <x-input-label for="product_serial_id" value="Serial / IMEI" />
-                        <x-local-select
-                            :options="$this->availableSerials->map(fn ($serial) => ['id' => $serial->id, 'label' => $serial->serial_number])->values()->all()"
-                            model="product_serial_id"
-                            placeholder="Click to browse or search serial/IMEI…" class="mt-1" />
-                        <x-input-error :messages="$errors->get('product_serial_id')" class="mt-1" />
-                        @if ($this->availableSerials->isEmpty())
-                            <p class="text-xs text-rose-500 mt-1">No in-stock units for this product.</p>
-                        @endif
+                @error('items') <p class="text-sm text-rose-600">{{ $message }}</p> @enderror
+
+                @foreach ($items as $index => $item)
+                    @php
+                        $product = $this->productFor($index);
+                        $serials = $product?->is_serialized ? $this->serialsFor($index) : collect();
+                        $batches = $product && ! $product->is_serialized ? $this->batchesFor($index) : collect();
+                    @endphp
+
+                    <div wire:key="agreement-item-{{ $index }}" class="rounded-xl bg-gray-50 dark:bg-gray-900/40 p-3">
+                        <div class="grid grid-cols-1 sm:grid-cols-12 gap-3">
+                            <div class="sm:col-span-7">
+                                <x-input-label value="Product" />
+                                <x-search-select search-method="searchProducts" model="items.{{ $index }}.product_id"
+                                    placeholder="Search by name, SKU, or brand…" class="mt-1" />
+                                <x-input-error :messages="$errors->get('items.'.$index.'.product_id')" class="mt-1" />
+                            </div>
+
+                            <div class="sm:col-span-4">
+                                <x-input-label value="Price" />
+                                <x-text-input type="number" step="1" min="1" wire:model.live="items.{{ $index }}.unit_price" class="mt-1 block w-full" />
+                                <x-input-error :messages="$errors->get('items.'.$index.'.unit_price')" class="mt-1" />
+                            </div>
+
+                            <div class="sm:col-span-1 flex items-end justify-end pb-1">
+                                @if (count($items) > 1)
+                                    <button type="button" wire:click="removeItem({{ $index }})"
+                                        title="Remove this product"
+                                        class="rounded-lg p-2 text-gray-400 transition hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-900/30">
+                                        <x-tenant-icon name="x-mark" class="h-4 w-4" />
+                                        <span class="sr-only">Remove product {{ $index + 1 }}</span>
+                                    </button>
+                                @endif
+                            </div>
+
+                            @if ($product?->is_serialized)
+                                <div class="sm:col-span-12" wire:key="serial-field-{{ $index }}-{{ $item['product_id'] }}">
+                                    <x-input-label value="Serial / IMEI" />
+                                    <x-local-select
+                                        :options="$serials->map(fn ($serial) => ['id' => $serial->id, 'label' => $serial->serial_number])->values()->all()"
+                                        model="items.{{ $index }}.product_serial_id"
+                                        placeholder="Click to browse or search serial/IMEI…" class="mt-1" />
+                                    <x-input-error :messages="$errors->get('items.'.$index.'.product_serial_id')" class="mt-1" />
+                                    @if ($serials->isEmpty())
+                                        <p class="text-xs text-rose-500 mt-1">No in-stock units left for this product.</p>
+                                    @endif
+                                </div>
+                            @elseif ($batches->isNotEmpty())
+                                <div class="sm:col-span-12" wire:key="batch-field-{{ $index }}-{{ $item['product_id'] }}">
+                                    <x-input-label value="Purchase Batch" />
+                                    <x-local-select
+                                        :options="$batches->map(fn ($batch) => [
+                                            'id' => $batch->id,
+                                            'label' => ($batch->purchaseOrder->vendor->name ?? 'Unknown vendor').' — Rs. '.number_format((float) $batch->cost_price, 0).' cost ('.($batch->quantity - ($batch->sold_quantity ?? 0)).' left)',
+                                        ])->values()->all()"
+                                        model="items.{{ $index }}.purchase_order_item_id"
+                                        placeholder="Bought from more than one vendor — pick the batch this unit came from…" class="mt-1" />
+                                    <x-input-error :messages="$errors->get('items.'.$index.'.purchase_order_item_id')" class="mt-1" />
+                                    <p class="text-xs text-gray-400 mt-1">Optional — bought from more than one vendor at different prices? Pick the batch this unit came from.</p>
+                                </div>
+                            @endif
+                        </div>
                     </div>
-                @elseif ($this->selectedProduct && $this->availableBatches->isNotEmpty())
-                    <div wire:key="batch-field-{{ $product_id }}">
-                        <x-input-label for="purchase_order_item_id" value="Purchase Batch" />
-                        <x-local-select
-                            :options="$this->availableBatches->map(fn ($batch) => [
-                                'id' => $batch->id,
-                                'label' => ($batch->purchaseOrder->vendor->name ?? 'Unknown vendor').' — Rs. '.number_format((float) $batch->cost_price, 0).' cost ('.($batch->quantity - ($batch->sold_quantity ?? 0)).' left)',
-                            ])->values()->all()"
-                            model="purchase_order_item_id"
-                            placeholder="This model was bought from more than one vendor — pick which batch you're selling…" class="mt-1" />
-                        <x-input-error :messages="$errors->get('purchase_order_item_id')" class="mt-1" />
-                        <p class="text-xs text-gray-400 mt-1">Optional — bought from more than one vendor at different prices? Pick the batch this unit came from.</p>
-                    </div>
-                @endif
+                @endforeach
             </div>
         </div>
 
@@ -624,6 +800,14 @@ new #[Layout('layouts.tenant')] class extends Component
                     <div>
                         <x-input-label for="productPrice" value="Product Price" />
                         <x-text-input id="productPrice" type="number" step="1" wire:model.live="productPrice" class="mt-1 block w-full" />
+                        @if ($this->priceOverridden)
+                            <p class="mt-1 text-xs text-amber-600 dark:text-amber-400">
+                                Products add up to Rs. {{ number_format((float) $this->lineTotal, 0) }} —
+                                <button type="button" wire:click="resetProductPrice" class="font-medium underline">use that instead</button>
+                            </p>
+                        @else
+                            <p class="mt-1 text-xs text-gray-400">Follows the products above; type over it to sell the bundle for a different figure.</p>
+                        @endif
                         <x-input-error :messages="$errors->get('productPrice')" class="mt-1" />
                     </div>
                     <div>

@@ -71,7 +71,7 @@ new #[Layout('layouts.customer')] class extends Component
                           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--theme-accent)]">
                     <div class="flex items-start justify-between gap-3">
                         <div class="min-w-0">
-                            <p class="font-medium text-gray-900 transition-colors group-hover:text-[var(--theme-accent)]">{{ $agreement->items->first()?->product->name ?? 'Agreement' }}</p>
+                            <p class="font-medium text-gray-900 transition-colors group-hover:text-[var(--theme-accent)]">{{ $agreement->productSummary() ?? 'Agreement' }}</p>
                             <p class="mt-0.5 text-xs text-gray-500">
                                 {{ $agreement->agreement_number }} · started {{ $agreement->start_date?->format('d M Y') }}
                                 @if ($agreement->first_due_date)
