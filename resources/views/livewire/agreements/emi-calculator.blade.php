@@ -1,6 +1,7 @@
 <?php
 
 use App\Support\EmiCalculator;
+use App\Support\InterestPeriod;
 use App\Support\Tenant;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
@@ -56,6 +57,7 @@ new #[Layout('layouts.tenant')] class extends Component
             processingFee: $this->numeric($this->processingFee),
             interestRate: $this->numeric($this->interestRate),
             durationMonths: $this->durationMonths,
+            interestPeriodMonths: (int) (Tenant::current()?->interest_rate_months ?? InterestPeriod::DEFAULT_MONTHS),
         );
     }
 

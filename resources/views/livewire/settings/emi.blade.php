@@ -1,6 +1,8 @@
 <?php
 
+use App\Support\InterestPeriod;
 use App\Support\Tenant;
+use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Validate;
 use Livewire\Volt\Component;
@@ -18,6 +20,14 @@ new #[Layout('layouts.tenant')] class extends Component
 
     #[Validate('required|numeric|min:0')]
     public string $default_processing_fee = '0';
+
+    #[Validate('required|integer|min:1|max:120')]
+    public int $interest_rate_months = InterestPeriod::DEFAULT_MONTHS;
+
+    // What $default_interest_rate is currently quoted against. Kept separately
+    // so changing the period can rescale the rate from the old basis instead
+    // of silently repricing every new agreement.
+    public int $appliedInterestPeriod = InterestPeriod::DEFAULT_MONTHS;
 
     public bool $penalties_enabled = true;
 
@@ -44,6 +54,8 @@ new #[Layout('layouts.tenant')] class extends Component
         // the trailing zeros are only noise in the box.
         $this->default_interest_rate = $this->trimDecimal($shop?->default_interest_rate);
         $this->default_processing_fee = $this->trimDecimal($shop?->default_processing_fee);
+        $this->interest_rate_months = (int) ($shop?->interest_rate_months ?? InterestPeriod::DEFAULT_MONTHS);
+        $this->appliedInterestPeriod = $this->interest_rate_months;
         $this->penalties_enabled = (bool) ($shop?->penalties_enabled ?? true);
         $this->penalty_type = $shop?->penalty_type ?? 'daily';
         $this->penalty_rate = $this->trimDecimal($shop?->penalty_rate);
@@ -53,6 +65,37 @@ new #[Layout('layouts.tenant')] class extends Component
     private function trimDecimal(string|float|null $value): string
     {
         return rtrim(rtrim(number_format((float) $value, 2, '.', ''), '0'), '.') ?: '0';
+    }
+
+    /**
+     * Changing the period rescales the rate so agreements cost what they did —
+     * 12% a year becomes 6% per 6 months, not 12% per 6 months.
+     */
+    public function updatedInterestRateMonths(): void
+    {
+        $this->validateOnly('interest_rate_months');
+
+        $this->default_interest_rate = InterestPeriod::convertRate(
+            $this->default_interest_rate,
+            $this->appliedInterestPeriod,
+            $this->interest_rate_months,
+        );
+
+        $this->appliedInterestPeriod = $this->interest_rate_months;
+    }
+
+    /** What the current rate and period cost on a representative plan. */
+    #[Computed]
+    public function interestExample(): string
+    {
+        return (new \App\Support\EmiCalculator(
+            productPrice: '100000',
+            downPayment: '0',
+            processingFee: '0',
+            interestRate: is_numeric($this->default_interest_rate) ? $this->default_interest_rate : '0',
+            durationMonths: 12,
+            interestPeriodMonths: max(1, $this->interest_rate_months),
+        ))->totalInterest();
     }
 
     public function saveDefaults(): void
@@ -217,7 +260,7 @@ new #[Layout('layouts.tenant')] class extends Component
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                    <x-input-label for="default_interest_rate" value="Default Interest Rate (annual %)" />
+                    <x-input-label for="default_interest_rate" :value="\App\Support\InterestPeriod::fieldLabel($interest_rate_months)" />
                     <x-text-input id="default_interest_rate" type="number" step="0.01" min="0" max="100" wire:model="default_interest_rate" class="mt-1 block w-full" />
                     <x-input-error :messages="$errors->get('default_interest_rate')" class="mt-1" />
                 </div>
@@ -225,6 +268,34 @@ new #[Layout('layouts.tenant')] class extends Component
                     <x-input-label for="default_processing_fee" value="Default Processing Fee (Rs.)" />
                     <x-text-input id="default_processing_fee" type="number" step="1" min="0" wire:model="default_processing_fee" class="mt-1 block w-full" />
                     <x-input-error :messages="$errors->get('default_processing_fee')" class="mt-1" />
+                </div>
+            </div>
+        </div>
+
+        <div class="rounded-2xl border border-white/40 dark:border-gray-700/60 bg-white/70 dark:bg-gray-800/60 backdrop-blur-xl shadow-lg shadow-gray-900/5 p-5">
+            <h3 class="font-semibold text-gray-900 dark:text-white mb-1">Interest Rate Basis</h3>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mb-5">
+                How long a stretch the rate above covers. Most shops quote a yearly rate (12); set 1 to quote a monthly rate, 6 for half-yearly.
+                Changing this rescales the rate so existing pricing is unaffected — agreements already signed never change.
+            </p>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                    <x-input-label for="interest_rate_months" value="Rate covers every… (months)" />
+                    <x-text-input id="interest_rate_months" type="number" step="1" min="1" max="120" wire:model.blur="interest_rate_months" class="mt-1 block w-full" />
+                    <p class="mt-1 text-xs text-gray-400">
+                        The rate above reads as <span class="font-medium text-gray-600 dark:text-gray-300">{{ $default_interest_rate }}% {{ \App\Support\InterestPeriod::label($interest_rate_months) }}</span>.
+                    </p>
+                    <x-input-error :messages="$errors->get('interest_rate_months')" class="mt-1" />
+                </div>
+
+                <div class="rounded-xl bg-gray-50 dark:bg-gray-900/40 p-4">
+                    <p class="text-xs text-gray-500 dark:text-gray-400">For example</p>
+                    <p class="mt-1 text-sm text-gray-700 dark:text-gray-300">
+                        Rs. 100,000 financed over 12 months costs
+                        <span class="font-semibold text-gray-900 dark:text-white">Rs. {{ number_format((float) $this->interestExample, 0) }}</span>
+                        in interest.
+                    </p>
                 </div>
             </div>
         </div>

@@ -23,6 +23,7 @@ class Agreement extends Model
         'down_payment',
         'processing_fee',
         'interest_rate',
+        'interest_rate_months',
         'duration_months',
         'financed_amount',
         'total_interest',

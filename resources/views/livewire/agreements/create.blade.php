@@ -13,6 +13,7 @@ use App\Models\ProductSerial;
 use App\Models\PurchaseOrderItem;
 use App\Models\User;
 use App\Support\EmiCalculator;
+use App\Support\InterestPeriod;
 use App\Support\PaymentMethod;
 use App\Support\Tenant;
 use Illuminate\Support\Facades\DB;
@@ -431,6 +432,7 @@ new #[Layout('layouts.tenant')] class extends Component
             processingFee: $this->numeric($this->processingFee),
             interestRate: $this->numeric($this->interestRate),
             durationMonths: $this->durationMonths ?? 0,
+            interestPeriodMonths: $this->interestPeriodMonths(),
         );
     }
 
@@ -448,6 +450,12 @@ new #[Layout('layouts.tenant')] class extends Component
      * Shops either collect installment #1 on the agreement's start date or a
      * month later — Settings → EMI Settings.
      */
+    /** The stretch of time this shop quotes its interest rate over. */
+    public function interestPeriodMonths(): int
+    {
+        return (int) (Tenant::current()?->interest_rate_months ?? InterestPeriod::DEFAULT_MONTHS);
+    }
+
     public function firstDueNextMonth(): bool
     {
         return Tenant::current()?->firstDueNextMonth() ?? false;
@@ -574,6 +582,9 @@ new #[Layout('layouts.tenant')] class extends Component
                 'down_payment' => $this->downPaymentAmount,
                 'processing_fee' => $this->numeric($this->processingFee),
                 'interest_rate' => $this->numeric($this->interestRate),
+                // Copied onto the agreement so it still reads correctly if the
+                // shop later changes the basis it quotes on.
+                'interest_rate_months' => $this->interestPeriodMonths(),
                 'duration_months' => $this->durationMonths,
                 'financed_amount' => $calculator->financedAmount(),
                 'total_interest' => $calculator->totalInterest(),
@@ -828,7 +839,7 @@ new #[Layout('layouts.tenant')] class extends Component
                     </div>
                     <x-payment-method-select method-model="downPaymentMode" bank-model="downPaymentBankId" label="Down Payment Method" />
                     <div>
-                        <x-input-label for="interestRate" value="Interest Rate (annual %)" />
+                        <x-input-label for="interestRate" :value="\App\Support\InterestPeriod::fieldLabel($this->interestPeriodMonths())" />
                         <x-text-input id="interestRate" type="number" step="0.01" wire:model.live="interestRate" class="mt-1 block w-full" />
                     </div>
                     <div>

@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Support\InterestPeriod;
 use Carbon\Carbon;
 use Carbon\CarbonInterface;
 
@@ -9,7 +10,7 @@ use Carbon\CarbonInterface;
  * Flat-rate EMI math shared by the calculator UI, agreement creation, and seeders.
  *
  * financed        = (price - down payment) + processing fee
- * total_interest  = financed * (rate / 100) * (months / 12)
+ * total_interest  = financed * (rate / 100) * (months / interest period)
  * total_payable   = financed + total_interest
  * monthly_installment = total_payable / months
  *
@@ -23,6 +24,8 @@ final class EmiCalculator
         public readonly string $processingFee,
         public readonly string $interestRate,
         public readonly int $durationMonths,
+        /** The stretch of time $interestRate covers — 12 for an annual rate. */
+        public readonly int $interestPeriodMonths = InterestPeriod::DEFAULT_MONTHS,
     ) {}
 
     public function financedAmount(): string
@@ -36,8 +39,10 @@ final class EmiCalculator
             return '0.00';
         }
 
+        $period = max(1, $this->interestPeriodMonths);
+
         $rateFraction = bcdiv($this->interestRate, '100', 6);
-        $durationFraction = bcdiv((string) $this->durationMonths, '12', 6);
+        $durationFraction = bcdiv((string) $this->durationMonths, (string) $period, 6);
 
         $interest = bcmul(bcmul($this->financedAmount(), $rateFraction, 6), $durationFraction, 6);
 

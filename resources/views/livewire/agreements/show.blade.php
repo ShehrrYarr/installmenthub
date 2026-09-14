@@ -204,7 +204,7 @@ new #[Layout('layouts.tenant')] class extends Component
                                 @endif
                             </dd>
                         </div>
-                        <div class="flex justify-between"><dt class="text-walnut-600/70 dark:text-walnut-200/70">Interest Rate</dt><dd class="text-walnut-900 dark:text-walnut-200">{{ $agreement->interest_rate }}%</dd></div>
+                        <div class="flex justify-between"><dt class="text-walnut-600/70 dark:text-walnut-200/70">Interest Rate</dt><dd class="text-walnut-900 dark:text-walnut-200">{{ $agreement->interest_rate }}% <span class="text-xs opacity-70">{{ \App\Support\InterestPeriod::label($agreement->interest_rate_months) }}</span></dd></div>
                         <div class="flex justify-between"><dt class="text-walnut-600/70 dark:text-walnut-200/70">Duration</dt><dd class="text-walnut-900 dark:text-walnut-200">{{ $agreement->duration_months }} mo</dd></div>
                         <div class="flex justify-between border-t border-walnut-200 dark:border-walnut-900 pt-2"><dt class="text-walnut-600/70 dark:text-walnut-200/70">Monthly Installment</dt><dd class="font-semibold text-walnut-900 dark:text-walnut-200">Rs. {{ number_format((float) $agreement->monthly_installment, 0) }}</dd></div>
                         <div class="flex justify-between"><dt class="text-walnut-600/70 dark:text-walnut-200/70">Outstanding</dt><dd class="font-semibold text-walnut-900 dark:text-walnut-200">Rs. {{ number_format((float) $agreement->outstandingBalance(), 0) }}</dd></div>
