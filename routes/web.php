@@ -3,6 +3,7 @@
 use App\Http\Controllers\CollectionBookPrintController;
 use App\Http\Controllers\CustomerReceiptController;
 use App\Http\Controllers\ReceiptProofController;
+use App\Http\Controllers\TenantDocumentController;
 use App\Http\Controllers\ThermalReceiptController;
 use App\Models\Shop;
 use Illuminate\Support\Facades\Auth;
@@ -105,6 +106,10 @@ Route::middleware(['auth', 'tenant.resolve'])
         // Bank slips live on the private disk; the controller decides who may
         // look at each one.
         Route::get('receipt-proofs/{media}', ReceiptProofController::class)->name('receipt-proof');
+
+        // Customer KYC / vendor documents also live on the private disk —
+        // staff of the owning shop only, never the customer portal.
+        Route::get('documents/{media}', TenantDocumentController::class)->name('document');
     });
 
 // Customer portal — /{shop}/customer/*. Read-only views of a customer's own

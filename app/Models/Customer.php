@@ -86,10 +86,15 @@ class Customer extends Model implements AuthenticatableContract, HasMedia
 
     /**
      * CNIC/ID Front, CNIC/ID Back, Customer Photo, Proof of Income, Guarantor Photo — 5 max.
+     *
+     * On the private disk: these are ID scans and income proof, not
+     * shareable via a guessable public URL. Served only through
+     * TenantDocumentController.
      */
     public function registerMediaCollections(): void
     {
         $this->addMediaCollection(self::MEDIA_COLLECTION)
+            ->useDisk('local')
             ->acceptsMimeTypes(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']);
     }
 

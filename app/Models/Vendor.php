@@ -60,10 +60,15 @@ class Vendor extends Model implements HasMedia
 
     /**
      * Logo, Trade License, Owner CNIC, Contract Copy, Storefront — 5 documents max.
+     *
+     * On the private disk: trade licenses and owner CNIC scans, not
+     * shareable via a guessable public URL. Served only through
+     * TenantDocumentController.
      */
     public function registerMediaCollections(): void
     {
         $this->addMediaCollection(self::MEDIA_COLLECTION)
+            ->useDisk('local')
             ->acceptsMimeTypes(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']);
     }
 

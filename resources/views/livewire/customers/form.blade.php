@@ -260,6 +260,7 @@ new #[Layout('layouts.tenant')] class extends Component
                 accept="image/png,image/jpeg,image/webp,application/pdf"
                 remove-method="removeMedia"
                 label="KYC Documents"
+                route-name="tenant.document"
             />
         </div>
 

@@ -6,6 +6,10 @@
     'accept' => 'image/png,image/jpeg,image/webp',
     'removeMethod' => 'removeMedia',
     'label' => 'Documents',
+    // Pass this for any collection stored on the private disk (KYC/vendor
+    // documents) — thumbnails are streamed through the named route instead
+    // of $media->getUrl(), which only works for public-disk media.
+    'routeName' => null,
 ])
 
 <div
@@ -60,7 +64,7 @@
         @foreach ($existing as $media)
             <div class="relative group aspect-square overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700">
                 @if (str($media->mime_type)->startsWith('image'))
-                    <img src="{{ $media->getUrl('thumb') }}" class="h-full w-full object-cover" alt="{{ $media->name }}">
+                    <img src="{{ $routeName ? route($routeName, ['media' => $media, 'conversion' => 'thumb']) : $media->getUrl('thumb') }}" class="h-full w-full object-cover" alt="{{ $media->name }}">
                 @else
                     <div class="flex h-full w-full items-center justify-center bg-gray-100 dark:bg-gray-700 text-[10px] text-gray-500 p-2 text-center break-all">{{ $media->file_name }}</div>
                 @endif
