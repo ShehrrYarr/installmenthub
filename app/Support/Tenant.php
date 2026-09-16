@@ -127,6 +127,22 @@ class Tenant
         }
 
         if ($user->hasRole('Super Admin')) {
+            // Prefer this request's own {shop} route segment over the
+            // session's "last visited shop" — otherwise a route-model-bound
+            // parameter nested under {shop} (e.g. {vendor} in
+            // /s/{shop}/vendors/{vendor}/edit) can resolve during
+            // SubstituteBindings against whichever shop the session says a
+            // Super Admin last opened, before ResolveTenant gets a chance to
+            // pin *this* request's shop — letting a stale session briefly
+            // scope a lookup to the wrong shop. Laravel binds a route's
+            // parameters in URI order, so {shop} is already a resolved Shop
+            // by the time a later segment like {vendor} is bound.
+            $routeShop = request()?->route('shop');
+
+            if ($routeShop instanceof Shop) {
+                return $routeShop;
+            }
+
             $shopId = session('superadmin_shop_id');
 
             return $shopId ? Shop::find($shopId) : null;
