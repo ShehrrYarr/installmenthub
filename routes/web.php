@@ -146,6 +146,8 @@ require __DIR__.'/auth.php';
 // resolves via the global Route::bind in AppServiceProvider and 404s on its
 // own if the slug doesn't exist, same as every other {shop} route.
 Route::get('{shop}', function (Shop $shop) {
+    \Log::info('TEMP_DEBUG shop.entry matched', ['slug' => $shop->slug, 'path' => request()->path(), 'uri' => request()->server('REQUEST_URI')]);
+
     $user = auth()->user();
 
     if ($user && ($user->hasRole('Super Admin') || $user->shop_id === $shop->id)) {
