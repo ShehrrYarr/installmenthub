@@ -145,16 +145,18 @@ require __DIR__.'/auth.php';
 // (dashboard, profile, confirm-password, etc.) still wins first. {shop}
 // resolves via the global Route::bind in AppServiceProvider and 404s on its
 // own if the slug doesn't exist, same as every other {shop} route.
+//
+// Do NOT run `php artisan route:cache` while this app is served from a
+// sub-path via an Apache Alias (APP_URL=http://host/sih): Laravel's
+// CompiledRouteCollection strips the request's trailing slash before
+// picking a route, which collapses a request for the bare root ("/sih/")
+// down to exactly the Alias prefix ("/sih") and breaks Symfony's base-path
+// detection. That makes this catch-all wrongly win over the "/" landing
+// route, and — because the *original* request is used to bind parameters
+// afterwards — {shop} ends up bound to an empty, unsaved Shop model rather
+// than 404ing, producing a 500 instead of the landing page. Uncached
+// routing (the default; route:clear if in doubt) doesn't have this bug.
 Route::get('{shop}', function (Shop $shop) {
-    \Log::info('TEMP_DEBUG shop.entry matched', [
-        'slug' => $shop->slug,
-        'path' => request()->path(),
-        'REQUEST_URI' => request()->server('REQUEST_URI'),
-        'SCRIPT_NAME' => request()->server('SCRIPT_NAME'),
-        'PATH_INFO' => request()->server('PATH_INFO'),
-        'route_params' => request()->route()?->parameters(),
-    ]);
-
     $user = auth()->user();
 
     if ($user && ($user->hasRole('Super Admin') || $user->shop_id === $shop->id)) {
