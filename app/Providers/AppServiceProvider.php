@@ -58,5 +58,12 @@ class AppServiceProvider extends ServiceProvider
         // model binding to inspect — without this, {shop} reaches route middleware
         // (ResolveTenant) as a raw slug string instead of a resolved Shop model.
         Route::bind('shop', fn (string $value) => Shop::where('slug', $value)->firstOrFail());
+
+        // Matches the slug format enforced on creation (superadmin.shops.form).
+        // Also structurally forbids an empty match: under Laravel's *compiled*
+        // route cache, the bare `{shop}` catch-all (routes/web.php) was
+        // wrongly winning over `Volt::route('/', 'landing')` for the app root
+        // — this pattern closes that gap so `route:cache` is safe to run.
+        Route::pattern('shop', '[a-z0-9]+(-[a-z0-9]+)*');
     }
 }
