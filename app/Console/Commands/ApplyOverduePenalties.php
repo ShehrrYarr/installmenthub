@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Models\CustomerLedgerEntry;
 use App\Models\InstallmentSchedule;
 use App\Models\Shop;
 use Illuminate\Console\Command;
@@ -14,6 +15,12 @@ use Illuminate\Support\Carbon;
  * period, then (re)computes penalty_amount so the run is idempotent — it can
  * fire every day without double-charging. 'daily' penalties grow with the days
  * elapsed past the grace period; 'fixed' penalties are a flat one-time charge.
+ *
+ * Each time a schedule's penalty grows, the increase is also posted as a
+ * CustomerLedgerEntry debit — otherwise the customer's own statement/ledger
+ * would understate what Collection Desk says is actually owed once a
+ * penalty lands (the two read from different places: Collection Desk sums
+ * schedule.total_due directly, the ledger is its own running balance).
  *
  * A shop with penalties switched off still gets its overdue flags — the
  * dashboard, Collection Book and customer portal all read them — but nothing
@@ -30,11 +37,15 @@ class ApplyOverduePenalties extends Command
         $today = Carbon::today();
         $flagged = 0;
 
-        Shop::where('is_active', true)->each(function (Shop $shop) use ($today, &$flagged) {
+        /** @var array<int, true> customer_id => true, recalculated once per customer after all their entries are posted */
+        $touchedCustomerIds = [];
+
+        Shop::where('is_active', true)->each(function (Shop $shop) use ($today, &$flagged, &$touchedCustomerIds) {
             InstallmentSchedule::where('shop_id', $shop->id)
                 ->whereIn('status', ['pending', 'partial', 'overdue'])
                 ->where('due_date', '<', $today)
-                ->chunkById(100, function ($schedules) use ($shop, $today, &$flagged) {
+                ->with('agreement:id,customer_id')
+                ->chunkById(100, function ($schedules) use ($shop, $today, &$flagged, &$touchedCustomerIds) {
                     foreach ($schedules as $schedule) {
                         // Carbon::diffInDays() is signed toward its argument, so call it
                         // on the (earlier) due date to get a positive "days late" count.
@@ -52,6 +63,16 @@ class ApplyOverduePenalties extends Command
                         // than writing off what's been billed. So penalty_amount
                         // and total_due are left exactly as they are.
                         if ($shop->penaltiesEnabled()) {
+                            // Read from the ledger itself, not schedule.penalty_amount — the
+                            // column can already hold a charge that predates this reconciliation
+                            // (e.g. one applied before this ledger-posting existed). Summing what's
+                            // actually been posted makes a first run after that self-healing: it
+                            // catches up the difference instead of treating the old value as
+                            // already accounted for.
+                            $alreadyPosted = (string) CustomerLedgerEntry::where('reference_type', InstallmentSchedule::class)
+                                ->where('reference_id', $schedule->id)
+                                ->sum('amount');
+
                             $effectiveDaysLate = $daysLate - $shop->grace_period_days;
 
                             $penalty = $shop->penalty_type === 'daily'
@@ -64,6 +85,28 @@ class ApplyOverduePenalties extends Command
                                 $penalty,
                                 2
                             );
+
+                            $increase = bcsub($penalty, $alreadyPosted, 2);
+                            $customerId = $schedule->agreement?->customer_id;
+
+                            if ($customerId !== null && bccomp($increase, '0.00', 2) > 0) {
+                                CustomerLedgerEntry::create([
+                                    'shop_id' => $shop->id,
+                                    'customer_id' => $customerId,
+                                    'agreement_id' => $schedule->agreement_id,
+                                    'type' => 'debit',
+                                    'amount' => $increase,
+                                    // Recalculated in bulk once per customer below —
+                                    // this placeholder is never read as final.
+                                    'running_balance' => '0.00',
+                                    'reference_type' => InstallmentSchedule::class,
+                                    'reference_id' => $schedule->id,
+                                    'description' => "Late payment penalty — installment #{$schedule->installment_number}",
+                                    'entry_date' => $today->toDateString(),
+                                ]);
+
+                                $touchedCustomerIds[$customerId] = true;
+                            }
                         }
 
                         $schedule->status = 'overdue';
@@ -73,6 +116,10 @@ class ApplyOverduePenalties extends Command
                     }
                 });
         });
+
+        foreach (array_keys($touchedCustomerIds) as $customerId) {
+            CustomerLedgerEntry::recalculateFor($customerId);
+        }
 
         $this->info("Overdue sweep complete — {$flagged} installment(s) flagged/updated.");
 
