@@ -7,6 +7,14 @@ use Livewire\Volt\Component;
 
 new #[Layout('layouts.marketing')] class extends Component
 {
+    /** Shown as a brief banner when redirected here after a "Try the Live Demo" session ends. */
+    public bool $demoEnded = false;
+
+    public function mount(): void
+    {
+        $this->demoEnded = request()->boolean('demo_ended');
+    }
+
     /** @var array<int, array{icon: string, title: string, description: string}> */
     public array $features = [
         ['icon' => 'calculator', 'title' => 'Instant EMI Calculator', 'description' => 'Live down-payment, interest, and monthly-installment preview with a full schedule breakdown — before an agreement is ever created.'],
@@ -71,6 +79,14 @@ new #[Layout('layouts.marketing')] class extends Component
             </div>
         </div>
     </header>
+
+    @if ($demoEnded)
+        <div x-data="{ show: true }" x-show="show" x-transition
+             class="border-b border-walnut-200 bg-walnut-100 px-4 py-3 text-center text-sm text-walnut-900 sm:px-6 lg:px-8">
+            You've left the live demo.
+            <button type="button" @click="show = false" class="ml-2 font-medium underline hover:no-underline">Dismiss</button>
+        </div>
+    @endif
 
     {{-- Hero --}}
     <section class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-16 pb-12 text-center">

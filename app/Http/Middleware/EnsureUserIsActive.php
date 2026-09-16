@@ -22,12 +22,20 @@ class EnsureUserIsActive
 
         if ($user && ! $user->is_active) {
             // Resolve the login destination before logging out — it may depend
-            // on the (about to be cleared) authenticated user's own shop.
-            $loginUrl = Tenant::loginUrlFor($request);
+            // on the (about to be cleared) authenticated user's own shop. A
+            // "Try the Live Demo" session (see landing.blade.php's
+            // enterAsDemo) has no login of its own to return to, so it goes
+            // back to the landing page instead, same as an explicit Log Out.
+            $isDemo = (bool) $request->session()->get('is_demo_session');
+            $loginUrl = $isDemo ? route('landing', ['demo_ended' => 1]) : Tenant::loginUrlFor($request);
 
             Auth::logout();
             $request->session()->invalidate();
             $request->session()->regenerateToken();
+
+            if ($isDemo) {
+                return redirect()->to($loginUrl);
+            }
 
             return redirect()->to($loginUrl)->withErrors([
                 'form.email' => 'This account has been deactivated. Contact your shop admin.',

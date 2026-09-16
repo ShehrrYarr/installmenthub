@@ -11,13 +11,19 @@ new class extends Component
      */
     public function logout(Logout $logout): void
     {
-        // Captured before logout clears auth() — sends the user back to
-        // their own shop's login page instead of the generic landing page.
+        // Captured before logout clears auth()/the session — sends the user
+        // back to their own shop's login page instead of the generic landing
+        // page, unless this was a "Try the Live Demo" session, which goes
+        // back to the landing page itself (see tenant-user-menu.blade.php).
         $shop = Tenant::current();
+        $isDemo = (bool) session('is_demo_session');
 
         $logout();
 
-        $this->redirect($shop ? route('login', ['shop' => $shop]) : route('landing'), navigate: true);
+        $this->redirect(
+            $isDemo ? route('landing', ['demo_ended' => 1]) : ($shop ? route('login', ['shop' => $shop]) : route('landing')),
+            navigate: true
+        );
     }
 }; ?>
 
