@@ -15,6 +15,8 @@ new #[Layout('layouts.super-admin')] class extends Component
 
     public function mount(Shop $shop): void
     {
+        abort_unless(auth()->user()?->hasRole('Super Admin'), 403);
+
         $this->shop = $shop;
     }
 
@@ -23,8 +25,15 @@ new #[Layout('layouts.super-admin')] class extends Component
         return $this->shop->users()->with('roles')->orderBy('name')->get();
     }
 
+    /**
+     * mount() only runs when the component is first created — a later
+     * Livewire action call (every click after the initial page load) skips
+     * it entirely, so the role is re-checked in each action below too.
+     */
     public function resetPassword(int $userId): void
     {
+        abort_unless(auth()->user()?->hasRole('Super Admin'), 403);
+
         $user = $this->shop->users()->findOrFail($userId);
 
         $newPassword = Str::password(12);
@@ -35,6 +44,8 @@ new #[Layout('layouts.super-admin')] class extends Component
 
     public function toggleActive(int $userId): void
     {
+        abort_unless(auth()->user()?->hasRole('Super Admin'), 403);
+
         $user = $this->shop->users()->findOrFail($userId);
         $user->update(['is_active' => ! $user->is_active]);
     }

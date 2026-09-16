@@ -17,6 +17,18 @@ new #[Layout('layouts.super-admin')] class extends Component
 
     public ?string $lastMeta = null;
 
+    /**
+     * The `role:Super Admin` route middleware only runs on the initial page
+     * load — Livewire actions go through the shared /livewire/update
+     * endpoint, which doesn't re-apply it. Every action below runs real
+     * commands on the server, so the role is re-checked here on each call,
+     * not just once at mount.
+     */
+    public function mount(): void
+    {
+        abort_unless(auth()->user()?->hasRole('Super Admin'), 403);
+    }
+
     /** @return array<string, array{label: string, description: string, confirm: ?string}> */
     #[Computed]
     public function commands(): array
@@ -67,6 +79,12 @@ new #[Layout('layouts.super-admin')] class extends Component
 
     public function run(string $key): void
     {
+        // mount() only runs when the component is first created — a
+        // Livewire action call on an already-mounted component (every click
+        // after the initial page load) skips it entirely, so the role must
+        // be re-checked here too, not just in mount().
+        abort_unless(auth()->user()?->hasRole('Super Admin'), 403);
+
         abort_unless(array_key_exists($key, $this->commands()), 404);
 
         set_time_limit(300);

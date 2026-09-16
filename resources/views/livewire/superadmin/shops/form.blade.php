@@ -66,6 +66,8 @@ new #[Layout('layouts.super-admin')] class extends Component
 
     public function mount(?Shop $shop = null): void
     {
+        abort_unless(auth()->user()?->hasRole('Super Admin'), 403);
+
         if ($shop?->exists) {
             $this->shop = $shop;
             $this->slug = $shop->slug;
@@ -107,6 +109,13 @@ new #[Layout('layouts.super-admin')] class extends Component
 
     public function save(): void
     {
+        // mount() only runs when the component is first created — a later
+        // Livewire action call (every click after the initial page load)
+        // skips it entirely, so the role is re-checked here too. This
+        // action provisions a new Shop Admin account, so it's not one to
+        // leave resting on mount() alone.
+        abort_unless(auth()->user()?->hasRole('Super Admin'), 403);
+
         $this->validate();
 
         $this->validate([

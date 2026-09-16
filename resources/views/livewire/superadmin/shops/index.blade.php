@@ -21,6 +21,17 @@ new #[Layout('layouts.super-admin')] class extends Component
     #[Validate('required|integer|min:0')]
     public string $renewalAmount = '0';
 
+    /**
+     * Route middleware (role:Super Admin) only covers the initial page
+     * load — Livewire actions go through the shared /livewire/update
+     * endpoint, which doesn't re-apply it. Every mutating action below is
+     * re-checked individually rather than relying on this alone.
+     */
+    public function mount(): void
+    {
+        abort_unless(auth()->user()?->hasRole('Super Admin'), 403);
+    }
+
     public function updatingSearch(): void
     {
         $this->resetPage();
@@ -28,11 +39,15 @@ new #[Layout('layouts.super-admin')] class extends Component
 
     public function suspend(int $shopId): void
     {
+        abort_unless(auth()->user()?->hasRole('Super Admin'), 403);
+
         Shop::findOrFail($shopId)->update(['subscription_status' => 'suspended', 'suspended_at' => now()]);
     }
 
     public function startReactivation(int $shopId): void
     {
+        abort_unless(auth()->user()?->hasRole('Super Admin'), 403);
+
         $this->renewing = Shop::findOrFail($shopId);
         $this->renewalAmount = (string) (int) $this->renewing->annual_fee;
         $this->resetErrorBag();
@@ -46,6 +61,8 @@ new #[Layout('layouts.super-admin')] class extends Component
 
     public function confirmReactivation(): void
     {
+        abort_unless(auth()->user()?->hasRole('Super Admin'), 403);
+
         $this->validate();
 
         $shop = $this->renewing;

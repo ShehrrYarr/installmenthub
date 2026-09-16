@@ -7,6 +7,11 @@ use Livewire\Volt\Component;
 
 new #[Layout('layouts.super-admin')] class extends Component
 {
+    public function mount(): void
+    {
+        abort_unless(auth()->user()?->hasRole('Super Admin'), 403);
+    }
+
     #[Computed]
     public function totalShops(): int
     {
