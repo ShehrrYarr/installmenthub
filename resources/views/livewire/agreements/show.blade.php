@@ -102,6 +102,12 @@ new #[Layout('layouts.tenant')] class extends Component
                     </button>
                 @endif
             @endif
+            @if (auth()->user()->hasAnyRole(['Shop Admin', 'Manager']))
+                <a href="{{ route('tenant.agreement.invoice', $agreement) }}" target="_blank"
+                    class="rounded-lg bg-gray-100 dark:bg-gray-700 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-200">
+                    Print Invoice
+                </a>
+            @endif
             <a href="{{ route('tenant.customers.edit', $agreement->customer) }}" wire:navigate class="text-sm text-walnut-400 hover:text-walnut-400 ml-auto">
                 View Customer
             </a>

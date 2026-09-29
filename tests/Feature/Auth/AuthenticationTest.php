@@ -159,9 +159,12 @@ class AuthenticationTest extends TestCase
 
         $component->call('logout');
 
+        // A shop-affiliated user has no single shared login to go back to —
+        // the redirect goes to their own shop's login, not the landing page
+        // (see navigation.blade.php's logout()).
         $component
             ->assertHasNoErrors()
-            ->assertRedirect('/');
+            ->assertRedirect(route('login', ['shop' => $shop]));
 
         $this->assertGuest();
     }

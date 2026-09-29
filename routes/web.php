@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AgreementInvoiceController;
 use App\Http\Controllers\CollectionBookPrintController;
 use App\Http\Controllers\CustomerReceiptController;
 use App\Http\Controllers\ReceiptProofController;
@@ -89,6 +90,7 @@ Route::middleware(['auth', 'tenant.resolve'])
         Volt::route('agreements', 'agreements.index')->name('agreements.index');
         Volt::route('agreements/create', 'agreements.create')->name('agreements.create');
         Volt::route('agreements/{agreement}', 'agreements.show')->name('agreements.show');
+        Route::get('agreements/{agreement}/invoice', AgreementInvoiceController::class)->name('agreement.invoice');
 
         Volt::route('emi-calculator', 'agreements.emi-calculator')->name('emi-calculator');
 
@@ -102,6 +104,7 @@ Route::middleware(['auth', 'tenant.resolve'])
         Volt::route('settings/staff', 'settings.staff')->name('settings.staff');
         Volt::route('settings/banks', 'settings.banks')->name('settings.banks');
         Volt::route('settings/emi', 'settings.emi')->name('settings.emi');
+        Volt::route('settings/invoice', 'settings.invoice')->name('settings.invoice');
 
         // Bank slips live on the private disk; the controller decides who may
         // look at each one.

@@ -37,6 +37,22 @@ class Tenant
         static::$resolved = true;
     }
 
+    /**
+     * Clears the cached tenant so it's re-resolved on next access.
+     *
+     * Every real request gets this for free — ResolveTenant/the customer
+     * portal's tenant middleware always call set() fresh — but these are
+     * plain class statics with no request-scoped container backing them, so
+     * nothing resets them between PHPUnit tests running in the same process.
+     * Called from tests/TestCase::setUp() for exactly that reason; there's no
+     * production reason to call this directly.
+     */
+    public static function reset(): void
+    {
+        static::$current = null;
+        static::$resolved = false;
+    }
+
     public static function current(): ?Shop
     {
         if (! static::$resolved) {

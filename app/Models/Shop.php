@@ -42,6 +42,17 @@ class Shop extends Model
         'grace_period_days',
         'is_active',
         'theme',
+        'invoice_show_letterhead',
+        'invoice_show_agreement_info',
+        'invoice_show_customer_info',
+        'invoice_show_product_items',
+        'invoice_show_financial_summary',
+        'invoice_show_guarantors',
+        'invoice_show_salesman',
+        'invoice_show_emi_schedule',
+        'invoice_show_terms',
+        'invoice_show_notes',
+        'invoice_terms_text',
     ];
 
     protected function casts(): array
@@ -59,6 +70,16 @@ class Shop extends Model
             'penalty_rate' => 'decimal:2',
             'penalties_enabled' => 'boolean',
             'is_active' => 'boolean',
+            'invoice_show_letterhead' => 'boolean',
+            'invoice_show_agreement_info' => 'boolean',
+            'invoice_show_customer_info' => 'boolean',
+            'invoice_show_product_items' => 'boolean',
+            'invoice_show_financial_summary' => 'boolean',
+            'invoice_show_guarantors' => 'boolean',
+            'invoice_show_salesman' => 'boolean',
+            'invoice_show_emi_schedule' => 'boolean',
+            'invoice_show_terms' => 'boolean',
+            'invoice_show_notes' => 'boolean',
         ];
     }
 
