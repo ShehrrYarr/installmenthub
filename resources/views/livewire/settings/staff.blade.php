@@ -133,33 +133,38 @@ new #[Layout('layouts.tenant')] class extends Component
 @endslot
 
 <div>
-    {{-- Settings sub-nav --}}
-    <div class="flex gap-1 border-b border-black/10 mb-6">
-        <a href="{{ route('tenant.settings.appearance') }}" wire:navigate
-           class="flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700">
-            <x-tenant-icon name="swatch" class="h-4 w-4" />
-            Appearance
-        </a>
-        <div class="flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2"
-             style="color: var(--theme-accent); border-color: var(--theme-accent)">
-            <x-tenant-icon name="users" class="h-4 w-4" />
-            Staff
+    {{-- Settings sub-nav — scrolls horizontally with hidden scrollbar + edge
+         fades (matching the mobile bottom nav) whenever the tabs don't fit. --}}
+    <div class="relative mb-6">
+        <div class="flex gap-1 overflow-x-auto no-scrollbar border-b border-black/10">
+            <a href="{{ route('tenant.settings.appearance') }}" wire:navigate
+               class="flex shrink-0 items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700">
+                <x-tenant-icon name="swatch" class="h-4 w-4" />
+                Appearance
+            </a>
+            <div class="flex shrink-0 items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2"
+                 style="color: var(--theme-accent); border-color: var(--theme-accent)">
+                <x-tenant-icon name="users" class="h-4 w-4" />
+                Staff
+            </div>
+            <a href="{{ route('tenant.settings.banks') }}" wire:navigate
+               class="flex shrink-0 items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700">
+                <x-tenant-icon name="building-storefront" class="h-4 w-4" />
+                Banks
+            </a>
+            <a href="{{ route('tenant.settings.emi') }}" wire:navigate
+               class="flex shrink-0 items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700">
+                <x-tenant-icon name="calculator" class="h-4 w-4" />
+                EMI Settings
+            </a>
+            <a href="{{ route('tenant.settings.invoice') }}" wire:navigate
+               class="flex shrink-0 items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700">
+                <x-tenant-icon name="document-text" class="h-4 w-4" />
+                Invoice
+            </a>
         </div>
-        <a href="{{ route('tenant.settings.banks') }}" wire:navigate
-           class="flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700">
-            <x-tenant-icon name="building-storefront" class="h-4 w-4" />
-            Banks
-        </a>
-        <a href="{{ route('tenant.settings.emi') }}" wire:navigate
-           class="flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700">
-            <x-tenant-icon name="calculator" class="h-4 w-4" />
-            EMI Settings
-        </a>
-        <a href="{{ route('tenant.settings.invoice') }}" wire:navigate
-           class="flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700">
-            <x-tenant-icon name="document-text" class="h-4 w-4" />
-            Invoice
-        </a>
+        <div class="pointer-events-none absolute inset-y-0 left-0 w-6 bg-gradient-to-r from-[var(--theme-bg)] to-transparent"></div>
+        <div class="pointer-events-none absolute inset-y-0 right-0 w-6 bg-gradient-to-l from-[var(--theme-bg)] to-transparent"></div>
     </div>
 
     @if (session('status'))
