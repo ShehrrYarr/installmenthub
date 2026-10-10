@@ -7,6 +7,7 @@ use App\Models\ProductSerial;
 use App\Support\PaymentMethod;
 use App\Support\PosCalculator;
 use App\Support\PosCheckout;
+use App\Support\PosReports;
 use App\Support\ReceiptProof;
 use App\Support\Tenant;
 use Illuminate\Support\Arr;
@@ -48,8 +49,14 @@ new #[Layout('layouts.tenant')] class extends Component
      */
     public array $cart = [];
 
-    /** A serialized product whose units are being chosen from. */
+    /** A serialized product whose units are being chosen from (the pop-up is open while this is set). */
     public ?int $pickingProductId = null;
+
+    /** Narrows the pop-up's list of units by IMEI / serial number. */
+    public string $unitSearch = '';
+
+    /** Most units listed in the pop-up at once — the search box narrows the rest. */
+    private const PICKER_LIMIT = 100;
 
     public ?int $customer_id = null;
 
@@ -116,7 +123,18 @@ new #[Layout('layouts.tenant')] class extends Component
             ->get();
     }
 
-    /** In-stock units of the product being picked, minus any already in the cart. */
+    /** In-stock units of the product being picked, minus any already in the cart, matching the search box. */
+    private function pickerQuery()
+    {
+        $term = trim($this->unitSearch);
+
+        return ProductSerial::where('product_id', $this->pickingProductId)
+            ->where('status', 'in_stock')
+            ->whereNotIn('id', $this->serialIdsInCart() ?: [0])
+            ->when($term !== '', fn ($query) => $query->where('serial_number', 'like', "%{$term}%"));
+    }
+
+    /** What the pop-up lists — oldest stock first, the order a shop normally wants to sell it in. */
     #[Computed]
     public function pickerSerials()
     {
@@ -124,12 +142,25 @@ new #[Layout('layouts.tenant')] class extends Component
             return collect();
         }
 
-        return ProductSerial::where('product_id', $this->pickingProductId)
-            ->where('status', 'in_stock')
-            ->whereNotIn('id', $this->serialIdsInCart() ?: [0])
-            ->orderBy('serial_number')
-            ->limit(100)
+        return $this->pickerQuery()
+            ->with('purchaseOrderItem.purchaseOrder.vendor')
+            ->orderBy('id')
+            ->limit(self::PICKER_LIMIT)
             ->get();
+    }
+
+    /** How many units match — can be more than the list shows. */
+    #[Computed]
+    public function pickerMatches(): int
+    {
+        return $this->pickingProductId ? $this->pickerQuery()->count() : 0;
+    }
+
+    /** What a unit cost is the shop's own business — owners and managers only, like profit. */
+    #[Computed]
+    public function canSeeCost(): bool
+    {
+        return PosReports::canSeeProfit(auth()->user());
     }
 
     #[Computed]
@@ -264,16 +295,11 @@ new #[Layout('layouts.tenant')] class extends Component
                 return;
             }
 
-            // One unit left needs no choosing; otherwise the cashier picks
-            // the exact one (the IMEI on the box in front of them).
-            if ($units->count() === 1) {
-                $this->addSerial($units->first());
-
-                return;
-            }
-
+            // Always asked — even with a single unit left — so the cashier
+            // confirms the exact one (the IMEI on the box in front of them).
+            $this->unitSearch = '';
             $this->pickingProductId = $product->id;
-            unset($this->pickerSerials, $this->pickingProduct);
+            unset($this->pickerSerials, $this->pickerMatches, $this->pickingProduct);
 
             return;
         }
@@ -321,13 +347,15 @@ new #[Layout('layouts.tenant')] class extends Component
 
         $this->cart[] = $this->newLine($product->id, $serial->id);
         $this->pickingProductId = null;
-        unset($this->pickerSerials, $this->pickingProduct);
+        $this->unitSearch = '';
+        unset($this->pickerSerials, $this->pickerMatches, $this->pickingProduct);
     }
 
     public function cancelPicking(): void
     {
         $this->pickingProductId = null;
-        unset($this->pickerSerials, $this->pickingProduct);
+        $this->unitSearch = '';
+        unset($this->pickerSerials, $this->pickerMatches, $this->pickingProduct);
     }
 
     public function removeLine(int $index): void
@@ -376,6 +404,7 @@ new #[Layout('layouts.tenant')] class extends Component
     {
         $this->cart = [];
         $this->pickingProductId = null;
+        $this->unitSearch = '';
         $this->billDiscountValue = '';
         $this->resetErrorBag();
         $this->say('');
@@ -806,22 +835,67 @@ new #[Layout('layouts.tenant')] class extends Component
             </div>
         @endif
 
-        {{-- Unit picker — a serialized product needs the exact unit chosen --}}
+        {{-- Unit picker pop-up — a serialized product needs the exact unit chosen.
+             A bottom sheet on a phone, a centred dialog from `sm` up. Escape, the
+             backdrop and Close all dismiss it. --}}
         @if ($this->pickingProduct)
-            <div class="rounded-2xl border border-walnut-200/60 bg-walnut-50/70 dark:bg-walnut-900/40 p-4 space-y-3" wire:key="unit-picker">
-                <div class="flex items-center justify-between">
-                    <p class="font-medium text-gray-900 dark:text-white">Which unit of {{ $this->pickingProduct->name }}?</p>
-                    <button type="button" wire:click="cancelPicking" class="text-sm text-gray-500 hover:text-gray-700">Cancel</button>
-                </div>
-                <div class="flex flex-wrap gap-2">
-                    @forelse ($this->pickerSerials as $unit)
-                        <button type="button" wire:click="addSerial({{ $unit->id }})" wire:key="unit-{{ $unit->id }}"
-                            class="rounded-full border border-gray-300 bg-white px-3 py-1.5 font-mono text-xs text-gray-700 hover:border-walnut-400 hover:bg-walnut-50">
-                            {{ $unit->serial_number }}
+            <div class="fixed inset-0 z-50 flex items-end justify-center bg-gray-900/50 sm:items-center sm:p-4"
+                 wire:key="unit-picker" wire:click.self="cancelPicking"
+                 x-data x-on:keydown.escape.window="$wire.cancelPicking()"
+                 role="dialog" aria-modal="true" aria-labelledby="unit-picker-title">
+                <div class="flex max-h-[85vh] w-full flex-col rounded-t-2xl bg-white shadow-2xl dark:bg-gray-800 sm:max-w-lg sm:rounded-2xl">
+                    <div class="flex items-start justify-between gap-3 border-b border-gray-100 dark:border-gray-700 px-5 py-4">
+                        <div class="min-w-0">
+                            <h3 id="unit-picker-title" class="font-semibold text-gray-900 dark:text-white">Which unit of {{ $this->pickingProduct->name }}?</h3>
+                            <p class="mt-0.5 text-xs text-gray-500">
+                                {{ $this->pickerMatches }} {{ \Illuminate\Support\Str::plural('unit', $this->pickerMatches) }}
+                                {{ trim($unitSearch) !== '' ? 'match' : 'in stock' }}
+                                · {{ $money($this->pickingProduct->cash_price) }} each
+                            </p>
+                        </div>
+                        <button type="button" wire:click="cancelPicking" title="Close"
+                            class="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700">
+                            <x-tenant-icon name="x-mark" class="h-5 w-5" />
+                            <span class="sr-only">Close</span>
                         </button>
-                    @empty
-                        <p class="text-sm text-gray-400">No units left.</p>
-                    @endforelse
+                    </div>
+
+                    <div class="px-5 pt-4">
+                        {{-- No auto-focus on a touch screen: it would put the keyboard over the list. --}}
+                        <label for="unit-search" class="sr-only">Search IMEI / serial number</label>
+                        <input id="unit-search" type="text" wire:model.live.debounce.250ms="unitSearch" autocomplete="off"
+                            x-init="if (window.matchMedia('(pointer: fine)').matches) $el.focus()"
+                            placeholder="Search IMEI / serial number…"
+                            class="block w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-900 text-sm shadow-sm focus:border-walnut-400 focus:ring-walnut-400">
+                    </div>
+
+                    <div class="mt-3 flex-1 space-y-2 overflow-y-auto px-5 pb-5">
+                        @forelse ($this->pickerSerials as $unit)
+                            @php
+                                $batch = $unit->purchaseOrderItem;
+                                $vendorName = $batch?->purchaseOrder?->vendor?->name;
+                            @endphp
+                            <button type="button" wire:click="addSerial({{ $unit->id }})" wire:key="unit-{{ $unit->id }}"
+                                class="block w-full rounded-xl border border-gray-200 dark:border-gray-700 px-4 py-3 text-left transition hover:border-walnut-400 hover:bg-walnut-50 dark:hover:bg-walnut-900/30">
+                                <span class="block font-mono text-sm font-semibold text-gray-900 dark:text-white">{{ $unit->serial_number }}</span>
+                                <span class="mt-1 flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-gray-500">
+                                    <span>{{ $vendorName ?? 'No vendor on record' }}</span>
+                                    <span>Received {{ $unit->created_at?->format('d M Y') ?? '—' }}</span>
+                                    @if ($this->canSeeCost)
+                                        <span>Cost {{ $money($batch?->cost_price ?? $this->pickingProduct->cost_price) }}</span>
+                                    @endif
+                                </span>
+                            </button>
+                        @empty
+                            <p class="py-6 text-center text-sm text-gray-400">
+                                {{ trim($unitSearch) !== '' ? 'No unit matches “'.trim($unitSearch).'”.' : 'No units left to add.' }}
+                            </p>
+                        @endforelse
+
+                        @if ($this->pickerMatches > $this->pickerSerials->count())
+                            <p class="pt-1 text-center text-xs text-gray-400">Showing the first {{ $this->pickerSerials->count() }} — search to narrow it down.</p>
+                        @endif
+                    </div>
                 </div>
             </div>
         @endif

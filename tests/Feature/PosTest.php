@@ -192,13 +192,18 @@ class PosTest extends TestCase
         $this->assertSame('42000.00', (string) $item->cost_price);
     }
 
-    public function test_the_last_remaining_unit_is_added_without_asking(): void
+    public function test_the_last_remaining_unit_is_still_asked_about(): void
     {
         $this->bootShop();
         $phone = $this->phone('ONLY-ONE');
+        $unit = ProductSerial::where('serial_number', 'ONLY-ONE')->firstOrFail();
 
+        // The cashier confirms the unit even when there is nothing to choose between.
         Volt::test('pos.register')
             ->call('addProduct', $phone->id)
+            ->assertSet('pickingProductId', $phone->id)
+            ->assertCount('cart', 0)
+            ->call('addSerial', $unit->id)
             ->assertSet('pickingProductId', null)
             ->assertCount('cart', 1);
     }
