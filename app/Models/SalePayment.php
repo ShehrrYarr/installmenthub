@@ -22,6 +22,7 @@ class SalePayment extends Model implements HasMedia
         'payment_mode',
         'bank_id',
         'reference_number',
+        'receipt_number',
         'received_by',
         'paid_at',
     ];

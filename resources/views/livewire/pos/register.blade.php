@@ -54,6 +54,9 @@ new #[Layout('layouts.tenant')] class extends Component
 
     public string $notes = '';
 
+    /** When a balance left on credit is due — only used when the payments fall short of the total. */
+    public string $dueDate = '';
+
     /** @var array<int, array{method: string, bank_id: int|string|null, amount: string, reference: string, tendered: string}> */
     public array $payments = [];
 
@@ -65,6 +68,7 @@ new #[Layout('layouts.tenant')] class extends Component
         abort_unless(Tenant::current()?->posEnabled(), 404);
 
         $this->payments = [$this->blankPayment()];
+        $this->dueDate = now()->addDays(30)->toDateString();
     }
 
     /** @return array{method: string, bank_id: null, amount: string, reference: string, tendered: string} */
@@ -154,11 +158,19 @@ new #[Layout('layouts.tenant')] class extends Component
             return [];
         }
 
+        // Every word typed has to match somewhere, so "Jane Doe" finds Jane
+        // Doe — name, CNIC and phone are separate columns.
+        $words = preg_split('/\s+/', trim($query), -1, PREG_SPLIT_NO_EMPTY);
+
         return Customer::where('is_active', true)
-            ->where(fn ($q) => $q->where('first_name', 'like', "%{$query}%")
-                ->orWhere('last_name', 'like', "%{$query}%")
-                ->orWhere('cnic_number', 'like', "%{$query}%")
-                ->orWhere('phone', 'like', "%{$query}%"))
+            ->where(function ($q) use ($words) {
+                foreach ($words as $word) {
+                    $q->where(fn ($match) => $match->where('first_name', 'like', "%{$word}%")
+                        ->orWhere('last_name', 'like', "%{$word}%")
+                        ->orWhere('cnic_number', 'like', "%{$word}%")
+                        ->orWhere('phone', 'like', "%{$word}%"));
+                }
+            })
             ->orderBy('first_name')
             ->limit(15)
             ->get()
@@ -438,6 +450,14 @@ new #[Layout('layouts.tenant')] class extends Component
         $this->payments[] = $this->blankPayment();
     }
 
+    /** The customer takes it all on credit: the first line is explicitly zero rather than "the balance". */
+    public function payNothingNow(): void
+    {
+        $this->payments = [$this->blankPayment()];
+        $this->payments[0]['amount'] = '0';
+        $this->proofs = [];
+    }
+
     public function removePayment(int $index): void
     {
         if (count($this->payments) <= 1) {
@@ -488,6 +508,7 @@ new #[Layout('layouts.tenant')] class extends Component
             'walkInName' => 'nullable|string|max:255',
             'walkInPhone' => 'nullable|string|max:30',
             'notes' => 'nullable|string|max:1000',
+            'dueDate' => 'nullable|date_format:Y-m-d',
         ]);
 
         $payments = collect($this->effectivePayments())
@@ -511,6 +532,7 @@ new #[Layout('layouts.tenant')] class extends Component
                 'walk_in_phone' => $this->walkInPhone,
                 'bill_discount_type' => $this->billDiscountType,
                 'bill_discount_value' => $this->billDiscountValue,
+                'due_date' => $this->dueDate,
                 'notes' => $this->notes,
             ],
         );
@@ -540,6 +562,12 @@ new #[Layout('layouts.tenant')] class extends Component
     $totals = $this->totals;
     $effective = $this->effectivePayments();
     $cartCount = collect($this->cart)->sum('quantity');
+
+    $paidNow = '0.00';
+    foreach ($effective as $line) {
+        $paidNow = bcadd($paidNow, \App\Support\PosCalculator::number($line['amount']), 2);
+    }
+    $onCredit = bcsub($totals['total'], $paidNow, 2);
 @endphp
 
 <div class="grid grid-cols-1 xl:grid-cols-5 gap-6">
@@ -846,6 +874,27 @@ new #[Layout('layouts.tenant')] class extends Component
                 </button>
 
                 <x-input-error :messages="$errors->get('payments')" />
+
+                @if (count($cart) > 0 && bccomp($onCredit, '0', 2) > 0)
+                    <div class="rounded-xl border border-amber-200 bg-amber-50 p-3 space-y-2" wire:key="credit-panel">
+                        <p class="text-sm font-medium text-amber-900">Balance on credit: {{ $money($onCredit) }}</p>
+
+                        @if ($customer_id)
+                            <div>
+                                <label for="pos-due-date" class="text-xs font-medium text-amber-900">Customer will pay by</label>
+                                <input id="pos-due-date" type="date" wire:model="dueDate" min="{{ today()->toDateString() }}"
+                                    class="mt-1 block w-full rounded-lg border-amber-300 bg-white text-sm shadow-sm focus:border-walnut-400 focus:ring-walnut-400">
+                                <x-input-error :messages="$errors->get('dueDate')" class="mt-1" />
+                            </div>
+                        @else
+                            <p class="text-xs text-amber-800">Attach a registered customer above to sell on credit — or take the full amount.</p>
+                        @endif
+                    </div>
+                @elseif ($customer_id && count($cart) > 0)
+                    <button type="button" wire:click="payNothingNow" class="text-xs font-medium text-walnut-600 hover:underline">
+                        Customer pays nothing now — put it all on credit
+                    </button>
+                @endif
             </div>
 
             <div>

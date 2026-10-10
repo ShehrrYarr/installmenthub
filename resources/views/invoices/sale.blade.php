@@ -117,7 +117,19 @@
                     <div class="flex justify-between"><dt class="text-gray-500">Bill discount</dt><dd>−{{ $money($sale->bill_discount_amount) }}</dd></div>
                 @endif
                 <div class="flex justify-between border-t border-gray-300 pt-1 mt-1 text-base font-semibold"><dt>Total</dt><dd>{{ $money($sale->total) }}</dd></div>
+                @if (bccomp((string) $sale->returned_total, '0', 2) > 0)
+                    <div class="flex justify-between"><dt class="text-gray-500">Returned</dt><dd>−{{ $money($sale->returned_total) }}</dd></div>
+                @endif
                 <div class="flex justify-between"><dt class="text-gray-500">Paid</dt><dd>{{ $money($sale->amount_paid) }}</dd></div>
+                @if (bccomp((string) $sale->refunded_total, '0', 2) > 0)
+                    <div class="flex justify-between"><dt class="text-gray-500">Refunded</dt><dd>−{{ $money($sale->refunded_total) }}</dd></div>
+                @endif
+                @if ($sale->hasBalanceDue())
+                    <div class="flex justify-between border-t border-gray-300 pt-1 mt-1 font-semibold"><dt>Balance due</dt><dd>{{ $money($sale->balanceDue()) }}</dd></div>
+                    @if ($sale->due_date)
+                        <div class="flex justify-between text-gray-500"><dt>Due by</dt><dd>{{ $sale->due_date->format('d M Y') }}</dd></div>
+                    @endif
+                @endif
             </dl>
         </div>
 

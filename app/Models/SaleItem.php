@@ -6,6 +6,8 @@ use App\Traits\BelongsToShop;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Contracts\Database\Query\Expression;
+use Illuminate\Support\Facades\DB;
 
 class SaleItem extends Model
 {
@@ -20,6 +22,7 @@ class SaleItem extends Model
         'product_name',
         'serial_number',
         'quantity',
+        'returned_quantity',
         'unit_price',
         'discount_type',
         'discount_value',
@@ -37,6 +40,21 @@ class SaleItem extends Model
             'line_total' => 'decimal:2',
             'cost_price' => 'decimal:2',
         ];
+    }
+
+    /**
+     * What is still out with the customer: sold, less taken back. Every stock
+     * and batch figure counts this rather than `quantity`, so a return
+     * restocks without rewriting what was sold.
+     */
+    public static function netQuantityExpression(): Expression
+    {
+        return DB::raw('sale_items.quantity - sale_items.returned_quantity');
+    }
+
+    public function returnableQuantity(): int
+    {
+        return max(0, (int) $this->quantity - (int) $this->returned_quantity);
     }
 
     public function sale(): BelongsTo

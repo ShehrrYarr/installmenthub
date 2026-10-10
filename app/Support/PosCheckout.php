@@ -21,8 +21,9 @@ use Illuminate\Validation\ValidationException;
  * payments and the customer ledger either all move or none do.
  *
  * Everything the register shows is advisory: prices come from the catalog,
- * stock is re-checked, and the payments must add up to the total here, so a
- * tampered browser state can't produce a sale the shop didn't intend.
+ * stock is re-checked, and the payments are re-validated here, so a tampered
+ * browser state can't produce a sale the shop didn't intend. Payments may
+ * fall short of the total only for a registered customer, with a due date.
  *
  * Failures are ValidationExceptions keyed to the register's own fields
  * (`cart`, `cart.{n}.…`, `payments`, `payments.{n}.…`), which Livewire turns
@@ -38,7 +39,7 @@ final class PosCheckout
     /**
      * @param  array<int, array{product_id: int|string|null, product_serial_id?: int|string|null, quantity?: int|string, discount_type?: string, discount_value?: string}>  $lines
      * @param  array<int, array{method?: string, bank_id?: int|string|null, amount?: string, reference?: ?string, tendered?: ?string, proof?: ?UploadedFile}>  $payments
-     * @param  array{customer_id?: int|string|null, walk_in_name?: ?string, walk_in_phone?: ?string, bill_discount_type?: string, bill_discount_value?: string, notes?: ?string}  $details
+     * @param  array{customer_id?: int|string|null, walk_in_name?: ?string, walk_in_phone?: ?string, bill_discount_type?: string, bill_discount_value?: string, due_date?: ?string, notes?: ?string}  $details
      */
     public function complete(array $lines, array $payments, array $details = []): Sale
     {
@@ -93,7 +94,9 @@ final class PosCheckout
                 throw $this->fail('cart', 'The sale total must be more than zero.');
             }
 
-            $paid = $this->validatePayments($payments, $totals['total']);
+            $lines = new PosPaymentLines($this->shop, $this->user);
+
+            [$paid, $dueDate] = $this->settle($lines->validate($payments), $totals['total'], $customer, $details);
 
             $sequence = (int) Sale::withoutGlobalScopes()->where('shop_id', $this->shop->id)->max('sequence') + 1;
 
@@ -114,6 +117,7 @@ final class PosCheckout
                 'bill_discount_amount' => $totals['bill_discount_amount'],
                 'total' => $totals['total'],
                 'amount_paid' => $paid,
+                'due_date' => $dueDate,
                 'notes' => $this->clean($details['notes'] ?? null),
                 'sold_at' => now(),
             ]);
@@ -122,10 +126,10 @@ final class PosCheckout
                 $this->storeLine($sale, $line, $totals['lines'][$index]['discount']);
             }
 
-            $storedPayments = $this->storePayments($sale, $payments, $customer);
+            $storedPayments = $lines->store($sale, $payments, $customer);
 
             if ($customer) {
-                $this->postToLedger($sale, $customer, $storedPayments);
+                $this->postToLedger($sale, $customer, $storedPayments, $lines);
             }
 
             return $sale->load(['items', 'payments', 'customer']);
@@ -308,7 +312,7 @@ final class PosCheckout
         $batches = PurchaseOrderItem::where('product_id', $product->id)
             ->whereHas('purchaseOrder', fn ($query) => $query->where('status', 'received'))
             ->withSum('agreementItems as agreement_sold', 'quantity')
-            ->withSum('saleItems as pos_sold', 'quantity')
+            ->withSum('saleItems as pos_sold', SaleItem::netQuantityExpression())
             ->orderBy('id')
             ->get();
 
@@ -339,106 +343,61 @@ final class PosCheckout
     }
 
     /**
-     * Phase 1 takes payment in full: every payment line is valid and together
-     * they equal the total exactly. Returns the amount paid.
+     * Works out what is paid now and what is left on credit.
      *
-     * @param  array<int, array<string, mixed>>  $payments
+     * A balance is only ever left to a registered customer, with a date to
+     * settle it by — otherwise nobody could be asked for the money later.
+     * Paying more than the total is never intended (change is the till's
+     * business, tracked through `tendered`).
+     *
+     * @param  array<string, mixed>  $details
+     * @return array{0: string, 1: ?string} amount paid now, due date (null when settled)
      */
-    private function validatePayments(array $payments, string $total): string
+    private function settle(string $paid, string $total, ?Customer $customer, array $details): array
     {
-        if ($payments === []) {
-            throw $this->fail('payments', 'Add a payment to complete the sale.');
+        if (bccomp($paid, $total, 2) > 0) {
+            throw $this->fail('payments', 'Payments add up to Rs. '.number_format((float) $paid, 0).', which is more than the total of Rs. '.number_format((float) $total, 0).'.');
         }
 
-        $bankIds = PaymentMethod::banks()->pluck('id')->all();
-        $paid = '0.00';
-
-        foreach ($payments as $index => $payment) {
-            $method = $payment['method'] ?? null;
-
-            if (! in_array($method, PaymentMethod::methods(), true)) {
-                throw $this->fail("payments.{$index}.method", 'Choose Cash or Bank.');
-            }
-
-            $amount = PosCalculator::number($payment['amount'] ?? '0');
-
-            if (bccomp($amount, '0', 2) <= 0) {
-                throw $this->fail("payments.{$index}.amount", 'Enter the amount paid.');
-            }
-
-            if ($method === PaymentMethod::BANK && ! in_array((int) ($payment['bank_id'] ?? 0), $bankIds, true)) {
-                throw $this->fail("payments.{$index}.bank_id", 'Please select a bank.');
-            }
-
-            $tendered = PosCalculator::number($payment['tendered'] ?? '0');
-
-            if ($method === PaymentMethod::CASH && bccomp($tendered, '0', 2) > 0 && bccomp($tendered, $amount, 2) < 0) {
-                throw $this->fail("payments.{$index}.tendered", 'Cash received is less than the amount being paid.');
-            }
-
-            $paid = bcadd($paid, $amount, 2);
+        if (bccomp($paid, $total, 2) === 0) {
+            return [$paid, null];
         }
 
-        if (bccomp($paid, $total, 2) !== 0) {
-            throw $this->fail('payments', 'Payments add up to Rs. '.number_format((float) $paid, 0).' but the total is Rs. '.number_format((float) $total, 0).'.');
+        $balance = bcsub($total, $paid, 2);
+
+        if (! $customer) {
+            throw $this->fail('payments', 'Rs. '.number_format((float) $balance, 0).' is still unpaid. Attach a registered customer to sell on credit, or take the full amount.');
         }
 
-        return $paid;
-    }
+        $due = trim((string) ($details['due_date'] ?? ''));
 
-    /**
-     * @param  array<int, array<string, mixed>>  $payments
-     * @return array<int, SalePayment>
-     */
-    private function storePayments(Sale $sale, array $payments, ?Customer $customer): array
-    {
-        $stored = [];
-
-        foreach ($payments as $payment) {
-            [$mode, $bankId] = PaymentMethod::toStorage($payment['method'], $payment['bank_id'] ?? null);
-
-            $tendered = PosCalculator::number($payment['tendered'] ?? '0');
-
-            $record = SalePayment::create([
-                'shop_id' => $this->shop->id,
-                'sale_id' => $sale->id,
-                'customer_id' => $customer?->id,
-                'amount' => PosCalculator::number($payment['amount']),
-                'tendered' => $mode === PaymentMethod::CASH && bccomp($tendered, '0', 2) > 0 ? $tendered : null,
-                'payment_mode' => $mode,
-                'bank_id' => $bankId,
-                'reference_number' => $mode === PaymentMethod::BANK ? $this->clean($payment['reference'] ?? null) : null,
-                'received_by' => $this->user->id,
-                'paid_at' => now(),
-            ]);
-
-            $proof = $payment['proof'] ?? null;
-
-            // Cash leaves no slip — a proof left over from a moment when Bank
-            // was selected is simply not stored.
-            if ($mode === PaymentMethod::BANK && $proof instanceof UploadedFile) {
-                $record->addMedia($proof->getRealPath())
-                    ->usingFileName($proof->getClientOriginalName())
-                    ->toMediaCollection(ReceiptProof::COLLECTION);
-            }
-
-            $stored[] = $record;
+        if ($due === '') {
+            throw $this->fail('dueDate', 'Choose the date the balance is due.');
         }
 
-        return $stored;
+        try {
+            $dueDate = \Illuminate\Support\Carbon::createFromFormat('Y-m-d', $due)->startOfDay();
+        } catch (\Throwable) {
+            throw $this->fail('dueDate', 'Enter a valid due date.');
+        }
+
+        if ($dueDate->lt(today())) {
+            throw $this->fail('dueDate', "The due date can't be in the past.");
+        }
+
+        return [$paid, $dueDate->toDateString()];
     }
 
     /**
      * The same shape agreements use: the obligation as one debit, each
-     * payment as its own credit — so a fully paid sale nets to nothing and
-     * the customer's history still shows what they bought and how they paid.
+     * payment as its own credit — so a fully paid sale nets to nothing, a
+     * sale on credit leaves exactly its balance, and the customer's history
+     * still shows what they bought and how they paid.
      *
      * @param  array<int, SalePayment>  $payments
      */
-    private function postToLedger(Sale $sale, Customer $customer, array $payments): void
+    private function postToLedger(Sale $sale, Customer $customer, array $payments, PosPaymentLines $lines): void
     {
-        $date = now()->toDateString();
-
         CustomerLedgerEntry::create([
             'shop_id' => $this->shop->id,
             'customer_id' => $customer->id,
@@ -449,27 +408,11 @@ final class PosCheckout
             'reference_type' => Sale::class,
             'reference_id' => $sale->id,
             'description' => "POS sale — {$sale->sale_number}",
-            'entry_date' => $date,
+            'entry_date' => now()->toDateString(),
             'created_by' => $this->user->id,
         ]);
 
-        foreach ($payments as $payment) {
-            CustomerLedgerEntry::create([
-                'shop_id' => $this->shop->id,
-                'customer_id' => $customer->id,
-                'agreement_id' => null,
-                'type' => 'credit',
-                'amount' => $payment->amount,
-                'payment_mode' => $payment->payment_mode,
-                'bank_id' => $payment->bank_id,
-                'running_balance' => '0.00',
-                'reference_type' => SalePayment::class,
-                'reference_id' => $payment->id,
-                'description' => "Payment received — {$sale->sale_number}",
-                'entry_date' => $date,
-                'created_by' => $this->user->id,
-            ]);
-        }
+        $lines->postToLedger($sale, $customer, $payments);
 
         CustomerLedgerEntry::recalculateFor($customer->id);
     }

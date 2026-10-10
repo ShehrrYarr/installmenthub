@@ -14,6 +14,10 @@ new #[Layout('layouts.tenant')] class extends Component
     #[Url(as: 'q')]
     public string $search = '';
 
+    /** all | outstanding (a balance is owed) | overdue (owed and past its due date) */
+    #[Url]
+    public string $filter = 'all';
+
     public function mount(): void
     {
         abort_unless(Tenant::current()?->posEnabled(), 404);
@@ -24,9 +28,18 @@ new #[Layout('layouts.tenant')] class extends Component
         $this->resetPage();
     }
 
+    public function updatingFilter(): void
+    {
+        $this->resetPage();
+    }
+
     public function with(): array
     {
         $term = $this->search;
+
+        // Mirrors Sale::balanceDue(): owed for what was kept, less what the
+        // shop is holding. Written out here so the list can filter in SQL.
+        $owed = '(sales.total - sales.returned_total) > (sales.amount_paid - sales.refunded_total)';
 
         $sales = Sale::query()
             ->with(['customer', 'seller', 'payments.bank'])
@@ -39,6 +52,8 @@ new #[Layout('layouts.tenant')] class extends Component
                     ->where('first_name', 'like', "%{$term}%")
                     ->orWhere('last_name', 'like', "%{$term}%")
                     ->orWhere('phone', 'like', "%{$term}%"))))
+            ->when(in_array($this->filter, ['outstanding', 'overdue'], true), fn ($q) => $q->whereRaw($owed))
+            ->when($this->filter === 'overdue', fn ($q) => $q->whereDate('due_date', '<', today()))
             ->latest('sold_at')
             ->latest('id')
             ->paginate(15);
@@ -61,10 +76,17 @@ new #[Layout('layouts.tenant')] class extends Component
 @endslot
 
 <div class="space-y-4">
-    <x-search-input model="search" placeholder="Search by sale number, customer name or phone…" class="w-full sm:w-96" />
+    <div class="flex flex-col sm:flex-row gap-3">
+        <x-search-input model="search" placeholder="Search by sale number, customer name or phone…" class="w-full sm:w-96" />
+        <select wire:model.live="filter" class="rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-800 shadow-sm">
+            <option value="all">All sales</option>
+            <option value="outstanding">Balance due</option>
+            <option value="overdue">Overdue</option>
+        </select>
+    </div>
 
     <div class="rounded-2xl border border-white/40 dark:border-gray-700/60 bg-white/70 dark:bg-gray-800/60 backdrop-blur-xl shadow-lg shadow-gray-900/5 overflow-hidden"
-         wire:loading.class="opacity-50 pointer-events-none" wire:target="search">
+         wire:loading.class="opacity-50 pointer-events-none" wire:target="search,filter">
         <div class="overflow-x-auto">
             <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
                 <thead class="bg-gray-50 dark:bg-gray-900/50">
@@ -75,6 +97,8 @@ new #[Layout('layouts.tenant')] class extends Component
                         <th class="px-4 py-3 text-right font-medium text-gray-500">Items</th>
                         <th class="px-4 py-3 text-left font-medium text-gray-500">Paid By</th>
                         <th class="px-4 py-3 text-right font-medium text-gray-500">Total</th>
+                        <th class="px-4 py-3 text-right font-medium text-gray-500">Balance</th>
+                        <th class="px-4 py-3 text-left font-medium text-gray-500">Status</th>
                         <th class="px-4 py-3 text-left font-medium text-gray-500">Sold By</th>
                         <th class="px-4 py-3"></th>
                     </tr>
@@ -93,13 +117,22 @@ new #[Layout('layouts.tenant')] class extends Component
                             <td class="px-4 py-2.5 text-right text-gray-500 dark:text-gray-400">{{ $sale->items_count }}</td>
                             <td class="px-4 py-2.5 text-gray-500 dark:text-gray-400">{{ $sale->paymentSummary() }}</td>
                             <td class="px-4 py-2.5 text-right font-medium text-gray-900 dark:text-white">{{ \App\Support\PosCalculator::money((string) $sale->total) }}</td>
+                            <td class="px-4 py-2.5 text-right {{ $sale->isOverdue() ? 'font-medium text-rose-600' : 'text-gray-700 dark:text-gray-300' }}">
+                                {{ $sale->hasBalanceDue() ? \App\Support\PosCalculator::money($sale->balanceDue()) : '—' }}
+                                @if ($sale->hasBalanceDue() && $sale->due_date)
+                                    <span class="block text-xs font-normal {{ $sale->isOverdue() ? 'text-rose-500' : 'text-gray-400' }}">due {{ $sale->due_date->format('d M') }}</span>
+                                @endif
+                            </td>
+                            <td class="px-4 py-2.5"><x-status-badge :status="$sale->paymentState()" /></td>
                             <td class="px-4 py-2.5 text-gray-500 dark:text-gray-400">{{ $sale->seller?->name ?? '—' }}</td>
                             <td class="px-4 py-2.5 text-right">
                                 <a href="{{ route('tenant.sales.show', $sale) }}" wire:navigate class="text-walnut-400 hover:text-walnut-200 font-medium text-xs">View</a>
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="8" class="px-4 py-8 text-center text-gray-400">No sales yet — ring one up on the POS.</td></tr>
+                        <tr><td colspan="10" class="px-4 py-8 text-center text-gray-400">
+                            {{ $filter === 'all' && $search === '' ? 'No sales yet — ring one up on the POS.' : 'No sales match.' }}
+                        </td></tr>
                     @endforelse
                 </tbody>
             </table>

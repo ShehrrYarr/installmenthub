@@ -94,7 +94,7 @@ class Product extends Model implements HasMedia
                   WHERE product_serials.product_id = products.id AND product_serials.status = 'in_stock')
             ELSE CAST(products.stock_quantity AS SIGNED)
                 - COALESCE((SELECT SUM(agreement_items.quantity) FROM agreement_items WHERE agreement_items.product_id = products.id), 0)
-                - COALESCE((SELECT SUM(sale_items.quantity) FROM sale_items WHERE sale_items.product_id = products.id), 0)
+                - COALESCE((SELECT SUM(sale_items.quantity - sale_items.returned_quantity) FROM sale_items WHERE sale_items.product_id = products.id), 0)
             END)";
     }
 

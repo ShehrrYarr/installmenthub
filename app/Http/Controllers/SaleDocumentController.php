@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Sale;
+use App\Models\SalePayment;
 use App\Models\Shop;
 use App\Support\Tenant;
 use Illuminate\Support\Facades\Auth;
@@ -28,6 +29,14 @@ class SaleDocumentController extends Controller
         return view('invoices.sale', $this->data($sale));
     }
 
+    /** The receipt for one payment taken against the sale — the original or a later repayment. */
+    public function paymentReceipt(Shop $shop, Sale $sale, SalePayment $payment): View
+    {
+        abort_unless($payment->sale_id === $sale->id, 404);
+
+        return view('receipts.sale-payment', $this->data($sale) + ['payment' => $payment->load(['bank', 'receiver'])]);
+    }
+
     /** @return array{sale: Sale, shop: Shop} */
     private function data(Sale $sale): array
     {
@@ -38,7 +47,7 @@ class SaleDocumentController extends Controller
 
         abort_unless($authorized, 403);
 
-        $sale->load(['shop', 'customer', 'seller', 'items', 'payments.bank']);
+        $sale->load(['shop', 'customer', 'seller', 'items', 'payments.bank', 'returns']);
 
         return ['sale' => $sale, 'shop' => $sale->shop];
     }

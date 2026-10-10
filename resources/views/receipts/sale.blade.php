@@ -21,10 +21,12 @@
         <button onclick="window.print()" class="inline-flex items-center gap-2 rounded-lg bg-walnut-600 px-4 py-2 text-sm font-medium text-white hover:bg-walnut-400">
             Print Receipt
         </button>
-        <a href="{{ $sale->whatsappUrl() }}" target="_blank" rel="noopener"
-           class="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500">
-            Send via WhatsApp
-        </a>
+        @unless ($portal ?? false)
+            <a href="{{ $sale->whatsappUrl() }}" target="_blank" rel="noopener"
+               class="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500">
+                Send via WhatsApp
+            </a>
+        @endunless
     </div>
 
     <div class="mx-auto bg-white text-black p-3" style="width: 80mm;">
@@ -90,6 +92,20 @@
                 @endif
             @endforeach
         </div>
+
+        @if (bccomp((string) $sale->returned_total, '0', 2) > 0 || $sale->hasBalanceDue())
+            <div class="py-2 border-t border-dashed border-black space-y-0.5">
+                @if (bccomp((string) $sale->returned_total, '0', 2) > 0)
+                    <div class="flex justify-between"><span>Returned</span><span>−{{ $money($sale->returned_total) }}</span></div>
+                @endif
+                @if ($sale->hasBalanceDue())
+                    <div class="flex justify-between text-sm font-bold"><span>BALANCE DUE</span><span>{{ $money($sale->balanceDue()) }}</span></div>
+                    @if ($sale->due_date)
+                        <div class="flex justify-between"><span>Due by</span><span>{{ $sale->due_date->format('d-M-Y') }}</span></div>
+                    @endif
+                @endif
+            </div>
+        @endif
 
         <div class="pt-2 border-t border-dashed border-black text-center">
             <p>Thank you for your purchase.</p>

@@ -2,8 +2,14 @@
     $shop = \App\Support\Tenant::current();
     $customer = auth('customer')->user();
 
+    // Counter purchases only appear for shops that sell over the counter (or
+    // a customer who already has some) — otherwise it is an empty tab.
+    $hasPurchases = ($shop?->posEnabled() ?? false)
+        || \App\Models\Sale::where('customer_id', $customer->id)->exists();
+
     $items = [
         ['route' => 'customer.agreements', 'label' => 'Agreements', 'icon' => 'document-text'],
+        ...($hasPurchases ? [['route' => 'customer.purchases', 'label' => 'Purchases', 'icon' => 'shopping-cart']] : []),
         ['route' => 'customer.ledger', 'label' => 'Statement', 'icon' => 'book-open'],
         ['route' => 'customer.password', 'label' => 'Password', 'icon' => 'shield-check'],
     ];
@@ -11,9 +17,11 @@
     $link = fn (string $route) => route($route, ['shop' => $shop]);
     // The agreement detail page lives under customer.agreement (singular), so
     // it keeps Agreements highlighted while you're reading one.
-    $active = fn (string $route) => $route === 'customer.agreements'
-        ? request()->routeIs('customer.agreements', 'customer.agreement')
-        : request()->routeIs($route);
+    $active = fn (string $route) => match ($route) {
+        'customer.agreements' => request()->routeIs('customer.agreements', 'customer.agreement'),
+        'customer.purchases' => request()->routeIs('customer.purchases', 'customer.purchase'),
+        default => request()->routeIs($route),
+    };
 @endphp
 
 {{-- Desktop sidebar --}}
@@ -76,9 +84,9 @@
 
 {{-- Mobile bottom bar — same treatment as the staff panel's, including the
      shadow that lifts it off the page. Only four items, so unlike the staff
-     bar it never needs to scroll. --}}
+     bar it never needs to scroll (five items at most). --}}
 <nav class="lg:hidden fixed inset-x-0 bottom-0 z-40 bg-white/90 backdrop-blur-xl pb-[env(safe-area-inset-bottom)] shadow-[0_-10px_30px_-6px_rgba(0,0,0,0.25)]">
-    <div class="grid grid-cols-4 gap-1 px-1 py-2">
+    <div class="grid {{ count($items) > 3 ? 'grid-cols-5' : 'grid-cols-4' }} gap-1 px-1 py-2">
         @foreach ($items as $item)
             <a href="{{ $link($item['route']) }}" wire:navigate
                class="flex flex-col items-center gap-0.5 rounded-lg py-1.5 text-[11px] font-medium

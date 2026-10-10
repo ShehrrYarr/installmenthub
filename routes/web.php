@@ -3,6 +3,7 @@
 use App\Http\Controllers\AgreementInvoiceController;
 use App\Http\Controllers\CollectionBookPrintController;
 use App\Http\Controllers\CustomerReceiptController;
+use App\Http\Controllers\CustomerSaleReceiptController;
 use App\Http\Controllers\ReceiptProofController;
 use App\Http\Controllers\SaleDocumentController;
 use App\Http\Controllers\TenantDocumentController;
@@ -104,6 +105,7 @@ Route::middleware(['auth', 'tenant.resolve'])
             Volt::route('sales/{sale}', 'pos.show')->name('sales.show');
             Route::get('sales/{sale}/receipt', [SaleDocumentController::class, 'receipt'])->name('sales.receipt');
             Route::get('sales/{sale}/invoice', [SaleDocumentController::class, 'invoice'])->name('sales.invoice');
+            Route::get('sales/{sale}/payments/{payment}/receipt', [SaleDocumentController::class, 'paymentReceipt'])->name('sales.payment-receipt');
         });
 
         Volt::route('collections', 'collections.desk')->name('collections.desk');
@@ -147,6 +149,10 @@ Route::middleware(['customer.tenant'])
             Volt::route('/', 'customer.agreements')->name('agreements');
             Volt::route('agreements/{agreement}', 'customer.agreement')->name('agreement');
             Volt::route('ledger', 'customer.ledger')->name('ledger');
+            Volt::route('purchases', 'customer.purchases')->name('purchases');
+            Volt::route('purchases/{sale}', 'customer.purchase')->name('purchase');
+            Route::get('purchases/{sale}/receipt', [CustomerSaleReceiptController::class, 'sale'])->name('purchase.receipt');
+            Route::get('purchases/{sale}/payments/{payment}/receipt', [CustomerSaleReceiptController::class, 'payment'])->name('purchase.payment-receipt');
             Volt::route('password', 'customer.password')->name('password');
             Route::get('receipts/{payment}', CustomerReceiptController::class)->name('receipt');
             Route::get('receipt-proofs/{media}', ReceiptProofController::class)->name('receipt-proof');

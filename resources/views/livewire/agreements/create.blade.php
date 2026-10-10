@@ -400,7 +400,7 @@ new #[Layout('layouts.tenant')] class extends Component
         return PurchaseOrderItem::where('product_id', $productId)
             ->with('purchaseOrder.vendor')
             ->withSum('agreementItems as sold_quantity', 'quantity')
-            ->withSum('saleItems as counter_sold_quantity', 'quantity')
+            ->withSum('saleItems as counter_sold_quantity', \App\Models\SaleItem::netQuantityExpression())
             ->oldest()
             ->get()
             // Units sold over the counter (POS) leave the batch just as an

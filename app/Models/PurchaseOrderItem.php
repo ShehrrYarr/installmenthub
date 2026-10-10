@@ -68,6 +68,6 @@ class PurchaseOrderItem extends Model
     {
         return $this->quantity
             - (int) $this->agreementItems()->sum('quantity')
-            - (int) $this->saleItems()->sum('quantity');
+            - (int) $this->saleItems()->sum(SaleItem::netQuantityExpression());
     }
 }
