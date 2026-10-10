@@ -197,7 +197,12 @@ new #[Layout('layouts.super-admin')] class extends Component
                     <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
                         @forelse ($shops as $shop)
                             <tr>
-                                <td class="px-4 py-3 font-medium text-gray-900 dark:text-white">{{ $shop->name }}</td>
+                                <td class="px-4 py-3 font-medium text-gray-900 dark:text-white">
+                                    {{ $shop->name }}
+                                    @if ($shop->pos_enabled)
+                                        <span class="ml-1.5 inline-flex items-center rounded-full bg-sky-100 dark:bg-sky-900/40 px-2 py-0.5 text-xs font-medium text-sky-700 dark:text-sky-300">POS</span>
+                                    @endif
+                                </td>
                                 <td class="px-4 py-3">
                                     <code class="rounded bg-gray-100 dark:bg-gray-900/60 px-1.5 py-0.5 text-xs text-gray-600 dark:text-gray-300">{{ $shop->slug }}</code>
                                 </td>

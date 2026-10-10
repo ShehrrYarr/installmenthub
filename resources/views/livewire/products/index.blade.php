@@ -33,7 +33,7 @@ new #[Layout('layouts.tenant')] class extends Component
                 ->orWhere('sku', 'like', "%{$this->search}%")
                 ->orWhere('brand', 'like', "%{$this->search}%")))
             ->when($this->category !== 'all', fn ($q) => $q->where('category', $this->category))
-            ->withCount(['serials as available_serials_count' => fn ($q) => $q->where('status', 'in_stock')])
+            ->withAvailableQuantity()
             ->latest()
             ->paginate(12);
 
@@ -96,8 +96,8 @@ new #[Layout('layouts.tenant')] class extends Component
                         </div>
                         <div class="rounded-lg bg-gray-50 dark:bg-gray-900/40 p-2">
                             <dt class="text-xs text-gray-400">In Stock</dt>
-                            <dd class="font-medium {{ $product->available_serials_count <= $product->reorder_level ? 'text-rose-600' : 'text-gray-900 dark:text-white' }}">
-                                {{ $product->is_serialized ? $product->available_serials_count : $product->stock_quantity }}
+                            <dd class="font-medium {{ $product->availableQuantity() <= $product->reorder_level ? 'text-rose-600' : 'text-gray-900 dark:text-white' }}">
+                                {{ $product->availableQuantity() }}
                             </dd>
                         </div>
                     </dl>

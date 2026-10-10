@@ -14,8 +14,16 @@
     // can't be pinned to a role without affecting every shop at once.
     // 'group' is only used by the 'flat' theme's grouped sidebar below —
     // the 3 glass themes render this same list without any grouping.
+    // POS is an add-on a Super Admin switches on per shop — its two entries
+    // only exist for shops that have it.
+    $posEnabled = \App\Support\Tenant::current()?->posEnabled() ?? false;
+
     $items = collect([
         ['route' => 'tenant.dashboard', 'label' => 'Dashboard', 'icon' => 'home', 'roles' => null, 'permission' => null, 'group' => null],
+        ...($posEnabled ? [
+            ['route' => 'tenant.pos.register', 'label' => 'POS', 'icon' => 'shopping-cart', 'roles' => null, 'permission' => null, 'group' => 'Sales'],
+            ['route' => 'tenant.sales.index', 'label' => 'Sales', 'icon' => 'receipt', 'roles' => null, 'permission' => null, 'group' => 'Sales'],
+        ] : []),
         ['route' => 'tenant.customers.index', 'label' => 'Customers', 'icon' => 'users', 'roles' => null, 'permission' => null, 'group' => 'Sales'],
         ['route' => 'tenant.collections.desk', 'label' => 'Collect', 'icon' => 'banknotes', 'roles' => null, 'permission' => null, 'group' => 'Sales'],
         ['route' => 'tenant.collections.book', 'label' => 'Collection Book', 'icon' => 'book-open', 'roles' => null, 'permission' => null, 'group' => 'Sales'],

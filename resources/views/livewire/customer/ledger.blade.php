@@ -19,7 +19,10 @@ new #[Layout('layouts.customer')] class extends Component
                 // Polymorphic: a Payment for a collection, the Agreement itself
                 // for the opening debit. Only Payment carries a bank (and a
                 // receipt proof, which the row shows as a paperclip).
-                'reference' => fn ($morphTo) => $morphTo->morphWith([Payment::class => ['bank', 'media']]),
+                'reference' => fn ($morphTo) => $morphTo->morphWith([
+                    Payment::class => ['bank', 'media'],
+                    \App\Models\SalePayment::class => ['bank', 'media'],
+                ]),
             ])
             ->orderBy('entry_date')
             ->orderBy('id')

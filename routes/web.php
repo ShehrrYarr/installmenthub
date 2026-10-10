@@ -4,6 +4,7 @@ use App\Http\Controllers\AgreementInvoiceController;
 use App\Http\Controllers\CollectionBookPrintController;
 use App\Http\Controllers\CustomerReceiptController;
 use App\Http\Controllers\ReceiptProofController;
+use App\Http\Controllers\SaleDocumentController;
 use App\Http\Controllers\TenantDocumentController;
 use App\Http\Controllers\ThermalReceiptController;
 use App\Models\Shop;
@@ -93,6 +94,17 @@ Route::middleware(['auth', 'tenant.resolve'])
         Route::get('agreements/{agreement}/invoice', AgreementInvoiceController::class)->name('agreement.invoice');
 
         Volt::route('emi-calculator', 'agreements.emi-calculator')->name('emi-calculator');
+
+        // Counter sales (POS) — only for shops a Super Admin has switched it
+        // on for. Registered inside this group so ResolveTenant has already
+        // pinned the shop by the time pos.enabled looks at it.
+        Route::middleware('pos.enabled')->group(function () {
+            Volt::route('pos', 'pos.register')->name('pos.register');
+            Volt::route('sales', 'pos.sales')->name('sales.index');
+            Volt::route('sales/{sale}', 'pos.show')->name('sales.show');
+            Route::get('sales/{sale}/receipt', [SaleDocumentController::class, 'receipt'])->name('sales.receipt');
+            Route::get('sales/{sale}/invoice', [SaleDocumentController::class, 'invoice'])->name('sales.invoice');
+        });
 
         Volt::route('collections', 'collections.desk')->name('collections.desk');
         Volt::route('collections/book', 'collections.book')->name('collections.book');

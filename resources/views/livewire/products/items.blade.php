@@ -30,8 +30,11 @@ new #[Layout('layouts.tenant')] class extends Component
         return $this->product->purchaseOrderItems()
             ->with(['purchaseOrder.vendor'])
             ->withSum('agreementItems as sold_quantity', 'quantity')
+            ->withSum('saleItems as counter_sold_quantity', 'quantity')
             ->orderByDesc('id')
-            ->get();
+            ->get()
+            // Agreements and counter (POS) sales both draw on a batch.
+            ->each(fn ($batch) => $batch->sold_quantity = (int) ($batch->sold_quantity ?? 0) + (int) ($batch->counter_sold_quantity ?? 0));
     }
 } ?>
 

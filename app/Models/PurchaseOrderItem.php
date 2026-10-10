@@ -51,6 +51,12 @@ class PurchaseOrderItem extends Model
         return $this->hasMany(AgreementItem::class);
     }
 
+    /** Units from this batch sold over the counter (POS). */
+    public function saleItems(): HasMany
+    {
+        return $this->hasMany(SaleItem::class);
+    }
+
     /**
      * How many units from this batch are still unsold. Only meaningful for
      * non-serialized products — serialized units are tracked individually
@@ -60,6 +66,8 @@ class PurchaseOrderItem extends Model
      */
     public function remainingQuantity(): int
     {
-        return $this->quantity - $this->agreementItems()->sum('quantity');
+        return $this->quantity
+            - (int) $this->agreementItems()->sum('quantity')
+            - (int) $this->saleItems()->sum('quantity');
     }
 }

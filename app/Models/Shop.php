@@ -41,6 +41,7 @@ class Shop extends Model
         'penalty_rate',
         'grace_period_days',
         'is_active',
+        'pos_enabled',
         'theme',
         'invoice_show_letterhead',
         'invoice_show_agreement_info',
@@ -70,6 +71,7 @@ class Shop extends Model
             'penalty_rate' => 'decimal:2',
             'penalties_enabled' => 'boolean',
             'is_active' => 'boolean',
+            'pos_enabled' => 'boolean',
             'invoice_show_letterhead' => 'boolean',
             'invoice_show_agreement_info' => 'boolean',
             'invoice_show_customer_info' => 'boolean',
@@ -152,6 +154,17 @@ class Shop extends Model
     public function purchaseOrders(): HasMany
     {
         return $this->hasMany(PurchaseOrder::class);
+    }
+
+    public function sales(): HasMany
+    {
+        return $this->hasMany(Sale::class);
+    }
+
+    /** Counter sales (POS) are an add-on a Super Admin switches on per shop. */
+    public function posEnabled(): bool
+    {
+        return (bool) $this->pos_enabled;
     }
 
     public function isOnTrial(): bool

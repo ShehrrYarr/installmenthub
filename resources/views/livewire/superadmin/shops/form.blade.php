@@ -30,6 +30,9 @@ new #[Layout('layouts.super-admin')] class extends Component
 
     public string $city = '';
 
+    // Counter-sales (POS) add-on — on only for shops that have bought it.
+    public bool $pos_enabled = false;
+
     #[Validate('required|in:trial,active,suspended')]
     public string $subscription_status = 'trial';
 
@@ -77,14 +80,25 @@ new #[Layout('layouts.super-admin')] class extends Component
             // throws a TypeError on a null value. grace_period_days is int
             // (not string) and NOT NULL in the schema, so it passes through
             // unchanged.
+            //
+            // The fee/penalty columns are decimal(14,2), so they arrive as
+            // "5000.00" — which the `integer` rules below reject, making Save
+            // fail without any message beside these fields. They are whole
+            // rupees, so strip the paisa before they reach the form.
+            $wholeRupees = ['monthly_fee', 'annual_fee', 'default_processing_fee', 'penalty_rate'];
+
             $this->fill([
                 ...collect($shop->only([
                     'name', 'phone', 'email', 'address', 'city', 'subscription_status', 'billing_cycle',
                     'monthly_fee', 'annual_fee', 'default_interest_rate', 'default_processing_fee',
                     'penalty_type', 'penalty_rate',
-                ]))->map(fn ($value) => $value ?? '')->all(),
+                ]))->map(fn ($value, $key) => in_array($key, $wholeRupees, true)
+                    ? (string) (int) round((float) $value)
+                    : ($value ?? ''))->all(),
                 ...$shop->only(['grace_period_days']),
             ]);
+
+            $this->pos_enabled = (bool) $shop->pos_enabled;
         }
     }
 
@@ -148,7 +162,7 @@ new #[Layout('layouts.super-admin')] class extends Component
 
             $data = collect($this->all())->only([
                 'name', 'slug', 'phone', 'email', 'address', 'city', 'subscription_status', 'billing_cycle',
-                'monthly_fee', 'annual_fee',
+                'monthly_fee', 'annual_fee', 'pos_enabled',
                 ...($this->shop ? [] : $shopOwnedFields),
             ])->toArray();
 
@@ -319,6 +333,20 @@ new #[Layout('layouts.super-admin')] class extends Component
                     </div>
                 </div>
             @endif
+        </div>
+
+        <div class="rounded-2xl border border-white/40 dark:border-gray-700/60 bg-white/70 dark:bg-gray-800/60 backdrop-blur-xl shadow-lg shadow-gray-900/5 p-5 space-y-3">
+            <h3 class="font-semibold text-gray-900 dark:text-white">Add-ons</h3>
+            <label class="flex items-start gap-3 cursor-pointer">
+                <input type="checkbox" wire:model="pos_enabled"
+                    class="mt-1 h-4 w-4 rounded border-gray-300 text-walnut-600 focus:ring-walnut-400">
+                <span>
+                    <span class="block text-sm font-medium text-gray-900 dark:text-white">Point of Sale (counter sales)</span>
+                    <span class="block text-sm text-gray-500 dark:text-gray-400">
+                        Adds the POS register and Sales list to this shop's navigation, for selling products outright with cash or bank payment.
+                    </span>
+                </span>
+            </label>
         </div>
 
         @if ($shop?->exists)

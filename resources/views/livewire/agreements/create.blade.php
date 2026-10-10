@@ -400,8 +400,12 @@ new #[Layout('layouts.tenant')] class extends Component
         return PurchaseOrderItem::where('product_id', $productId)
             ->with('purchaseOrder.vendor')
             ->withSum('agreementItems as sold_quantity', 'quantity')
+            ->withSum('saleItems as counter_sold_quantity', 'quantity')
             ->oldest()
             ->get()
+            // Units sold over the counter (POS) leave the batch just as an
+            // agreement's do — and the figure shown in the picker follows.
+            ->each(fn ($batch) => $batch->sold_quantity = (int) ($batch->sold_quantity ?? 0) + (int) ($batch->counter_sold_quantity ?? 0))
             ->filter(fn ($batch) => $batch->quantity - ($batch->sold_quantity ?? 0) - ($claimedHere[$batch->id] ?? 0) > 0)
             ->values();
     }

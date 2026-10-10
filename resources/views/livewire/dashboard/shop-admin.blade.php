@@ -190,7 +190,7 @@ new #[Layout('layouts.tenant')] class extends Component
     #[Computed]
     public function lowStockCount(): int
     {
-        return Product::whereColumn('stock_quantity', '<=', 'reorder_level')->where('is_active', true)->count();
+        return Product::lowOnStock()->where('is_active', true)->count();
     }
 
     #[Computed]

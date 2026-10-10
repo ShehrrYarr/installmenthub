@@ -194,7 +194,10 @@ new #[Layout('layouts.tenant')] class extends Component
                 // collection, but at the Agreement itself for the opening
                 // debit. Only Payment has a bank and a receipt proof, so scope
                 // the nested load to it rather than asking every morph target.
-                'reference' => fn ($morphTo) => $morphTo->morphWith([Payment::class => ['bank', 'media']]),
+                'reference' => fn ($morphTo) => $morphTo->morphWith([
+                    Payment::class => ['bank', 'media'],
+                    \App\Models\SalePayment::class => ['bank', 'media'],
+                ]),
             ])
             ->orderBy('entry_date')
             ->orderBy('id')

@@ -19,6 +19,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'role_or_permission' => \Spatie\Permission\Middleware\RoleOrPermissionMiddleware::class,
             'tenant.resolve' => \App\Http\Middleware\ResolveTenant::class,
             'customer.tenant' => \App\Http\Middleware\ResolveCustomerPortalTenant::class,
+            'pos.enabled' => \App\Http\Middleware\EnsurePosEnabled::class,
         ]);
 
         // There's no single shared /login anymore (every shop has its own,

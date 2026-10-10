@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Customer;
 use App\Models\CustomerLedgerEntry;
 use App\Models\Payment;
+use App\Models\SalePayment;
 use App\Models\Shop;
 use App\Support\Tenant;
 use App\Support\ReceiptProof;
@@ -62,7 +63,7 @@ class ReceiptProofController extends Controller
         }
 
         return match (true) {
-            $record instanceof Payment, $record instanceof CustomerLedgerEntry => $record->customer_id === $customer->id,
+            $record instanceof Payment, $record instanceof CustomerLedgerEntry, $record instanceof SalePayment => $record->customer_id === $customer->id,
             default => false,
         };
     }
