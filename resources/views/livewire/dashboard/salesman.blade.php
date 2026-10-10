@@ -3,6 +3,8 @@
 use App\Models\Agreement;
 use App\Models\InstallmentSchedule;
 use App\Models\Payment;
+use App\Models\Sale;
+use App\Support\Tenant;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
 use Livewire\Volt\Component;
@@ -41,6 +43,35 @@ new #[Layout('layouts.tenant')] class extends Component
             ->sum('amount');
     }
 
+    /** The Point of Sale is an add-on a shop opts into — nothing here shows without it. */
+    #[Computed]
+    public function posEnabled(): bool
+    {
+        return Tenant::current()?->posEnabled() ?? false;
+    }
+
+    /** Sales rung up today by this user (everyone's, for a manager or admin who lands here). */
+    private function salesToday()
+    {
+        return Sale::whereDate('sold_at', today())
+            ->when($this->isSalesman(), fn ($q) => $q->where('sold_by', auth()->id()));
+    }
+
+    #[Computed]
+    public function salesTodayCount(): int
+    {
+        return $this->salesToday()->count();
+    }
+
+    /** What those sales came to, less anything already returned. */
+    #[Computed]
+    public function soldToday(): float
+    {
+        $sales = $this->salesToday();
+
+        return (float) (clone $sales)->sum('total') - (float) (clone $sales)->sum('returned_total');
+    }
+
     #[Computed]
     public function recentPayments()
     {
@@ -64,6 +95,21 @@ new #[Layout('layouts.tenant')] class extends Component
         <x-stat-card label="Due Today" :value="$this->dueTodayCount" color="amber" />
         <x-stat-card label="Collected Today" :value="'Rs. '.number_format($this->collectedToday, 0)" color="emerald" />
     </div>
+
+    @if ($this->posEnabled)
+        <div class="grid grid-cols-2 gap-3 mb-3">
+            <x-stat-card label="My Sales Today" :value="$this->salesTodayCount" color="walnut" />
+            <x-stat-card label="Sold Today" :value="'Rs. '.number_format($this->soldToday, 0)" color="emerald" />
+        </div>
+
+        <a href="{{ route('tenant.pos.register') }}" wire:navigate
+           class="flex items-center justify-between rounded-2xl bg-walnut-900 px-5 py-4 text-white shadow-lg shadow-walnut-900/20 mb-3">
+            <span class="flex items-center gap-3 font-medium">
+                <x-tenant-icon name="shopping-cart" class="h-6 w-6" /> New Counter Sale
+            </span>
+            <x-tenant-icon name="chevron-right" class="h-5 w-5" />
+        </a>
+    @endif
 
     <a href="{{ \Illuminate\Support\Facades\Route::has('tenant.collections.desk') ? route('tenant.collections.desk') : '#' }}" wire:navigate
        class="flex items-center justify-between rounded-2xl bg-walnut-600 px-5 py-4 text-white shadow-lg shadow-walnut-600/20 mb-6">

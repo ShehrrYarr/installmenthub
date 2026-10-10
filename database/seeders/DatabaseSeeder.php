@@ -15,6 +15,7 @@ class DatabaseSeeder extends Seeder
             RoleAndPermissionSeeder::class,
             ShopSeeder::class,
             ExtraDemoDataSeeder::class,
+            PosDemoSeeder::class,
         ]);
     }
 }

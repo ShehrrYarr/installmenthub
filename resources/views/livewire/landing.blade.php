@@ -27,14 +27,15 @@ new #[Layout('layouts.marketing')] class extends Component
         ['icon' => 'exclamation-triangle', 'title' => 'Automated Penalties', 'description' => "A daily sweep flags overdue installments past each shop's grace period and calculates late fees automatically."],
         ['icon' => 'book-open', 'title' => 'Customer & Vendor Ledgers', 'description' => 'Full running-balance statements — down payments, interest charged, collections, and penalties levied, in one place.'],
         ['icon' => 'sparkles', 'title' => 'Role-Based Dashboards', 'description' => 'Purpose-built views for Shop Admin, Manager, and Salesman — each sees exactly what their role needs.'],
-        ['icon' => 'device-phone-mobile', 'title' => 'Mobile-First POS', 'description' => 'Bottom navigation and touch-friendly forms, built for a salesman working the floor on a phone, not a desk.'],
+        ['icon' => 'shopping-cart', 'title' => 'Counter Sales (POS)', 'description' => 'Ring up outright sales next to installments — scan or search, cash, bank or split payments, discounts, credit balances, returns, and a daily closing report.'],
+        ['icon' => 'device-phone-mobile', 'title' => 'Mobile-First Interface', 'description' => 'Bottom navigation and touch-friendly forms, built for a salesman working the floor on a phone, not a desk.'],
     ];
 
     /** @var array<int, array{role: string, label: string, description: string, badge: string}> */
     public array $demoRoles = [
-        ['role' => 'shop-admin', 'label' => 'Shop Admin', 'badge' => 'Karachi Electronics Hub', 'description' => 'Full control of one shop — vendors, products, purchase orders, agreements, and the collection desk.'],
+        ['role' => 'shop-admin', 'label' => 'Shop Admin', 'badge' => 'Karachi Electronics Hub', 'description' => 'Full control of one shop — vendors, products, purchase orders, agreements, counter sales, and the collection desk.'],
         ['role' => 'manager', 'label' => 'Manager', 'badge' => 'Karachi Electronics Hub', 'description' => 'Day-to-day shop operations — everything Shop Admin sees, without the shop\'s own billing controls.'],
-        ['role' => 'salesman', 'label' => 'Salesman', 'badge' => 'Karachi Electronics Hub', 'description' => 'The mobile-first view — today\'s collection round, quick agreement creation, and the collection desk.'],
+        ['role' => 'salesman', 'label' => 'Salesman', 'badge' => 'Karachi Electronics Hub', 'description' => 'The mobile-first view — today\'s collection round, quick agreement creation, counter sales, and the collection desk.'],
     ];
 
     /** wa.me deep link for the floating contact button — always visible, no demo-mode gate. */
