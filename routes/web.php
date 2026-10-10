@@ -102,6 +102,14 @@ Route::middleware(['auth', 'tenant.resolve'])
         Route::middleware('pos.enabled')->group(function () {
             Volt::route('pos', 'pos.register')->name('pos.register');
             Volt::route('sales', 'pos.sales')->name('sales.index');
+
+            // Registered ahead of sales/{sale}, which would otherwise take
+            // "reports" and "closing" for sale ids.
+            Route::middleware('role:Shop Admin|Manager|Super Admin')->group(function () {
+                Volt::route('sales/reports', 'pos.reports')->name('sales.reports');
+            });
+            Volt::route('sales/closing', 'pos.closing')->name('sales.closing');
+
             Volt::route('sales/{sale}', 'pos.show')->name('sales.show');
             Route::get('sales/{sale}/receipt', [SaleDocumentController::class, 'receipt'])->name('sales.receipt');
             Route::get('sales/{sale}/invoice', [SaleDocumentController::class, 'invoice'])->name('sales.invoice');

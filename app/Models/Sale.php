@@ -170,6 +170,25 @@ class Sale extends Model
         return $this->status === self::STATUS_RETURNED;
     }
 
+    /**
+     * What the units still with the customer cost the shop. Needs `items`
+     * loaded. Cost is a snapshot taken at the time of sale, so a later price
+     * change never rewrites what a sale earned.
+     */
+    public function keptCost(): string
+    {
+        return $this->items->reduce(
+            fn (string $carry, SaleItem $item) => bcadd($carry, bcmul((string) $item->cost_price, (string) $item->returnableQuantity(), 2), 2),
+            '0.00'
+        );
+    }
+
+    /** What this sale earned: what was kept, less what it cost. */
+    public function profit(): string
+    {
+        return bcsub($this->netTotal(), $this->keptCost(), 2);
+    }
+
     /** One word for the badge: returned, overdue, partial (balance owed) or paid. */
     public function paymentState(): string
     {

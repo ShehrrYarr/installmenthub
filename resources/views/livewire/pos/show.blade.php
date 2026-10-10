@@ -543,6 +543,15 @@ new #[Layout('layouts.tenant')] class extends Component
                         <dt>Credit with the shop</dt><dd>{{ $money($sale->overpaid()) }}</dd>
                     </div>
                 @endif
+
+                @if (\App\Support\PosReports::canSeeProfit(auth()->user()))
+                    <div class="flex justify-between border-t border-dashed border-gray-200 dark:border-gray-700 pt-1.5">
+                        <dt class="text-gray-500">Cost of goods kept</dt><dd class="text-gray-700 dark:text-gray-300">{{ $money($sale->keptCost()) }}</dd>
+                    </div>
+                    <div class="flex justify-between font-semibold {{ bccomp($sale->profit(), '0', 2) < 0 ? 'text-rose-600' : 'text-emerald-600' }}">
+                        <dt>Profit</dt><dd>{{ $money($sale->profit()) }}</dd>
+                    </div>
+                @endif
             </dl>
         </div>
     </div>

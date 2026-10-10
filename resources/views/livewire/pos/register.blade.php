@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Customer;
+use App\Models\HeldCart;
 use App\Models\Product;
 use App\Models\ProductSerial;
 use App\Support\PaymentMethod;
@@ -11,6 +12,7 @@ use App\Support\Tenant;
 use Illuminate\Support\Arr;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\Url;
 use Livewire\Volt\Component;
 use Livewire\WithFileUploads;
 
@@ -24,6 +26,13 @@ new #[Layout('layouts.tenant')] class extends Component
     public string $search = '';
 
     public string $category = 'all';
+
+    /**
+     * Id of a held sale to open this register on (?resume=…). Cleared once
+     * it has been loaded, so reloading the page doesn't try to load it again.
+     */
+    #[Url]
+    public ?int $resume = null;
 
     /** A one-line message under the scan box ("sold already", "no exact match"…). */
     public string $notice = '';
@@ -43,6 +52,9 @@ new #[Layout('layouts.tenant')] class extends Component
     public ?int $pickingProductId = null;
 
     public ?int $customer_id = null;
+
+    /** Name shown in the customer box when the page opens with one already attached (a resumed sale). */
+    public string $customerLabel = '';
 
     public string $walkInName = '';
 
@@ -69,6 +81,13 @@ new #[Layout('layouts.tenant')] class extends Component
 
         $this->payments = [$this->blankPayment()];
         $this->dueDate = now()->addDays(30)->toDateString();
+
+        // A held sale is resumed by opening the register on it — a fresh page,
+        // so the customer box and everything else start from this state.
+        if ($this->resume) {
+            $this->restoreHeld($this->resume);
+            $this->resume = null;
+        }
     }
 
     /** @return array{method: string, bank_id: null, amount: string, reference: string, tendered: string} */
@@ -362,6 +381,155 @@ new #[Layout('layouts.tenant')] class extends Component
         $this->say('');
     }
 
+    // ── Held sales ──────────────────────────────────────────────────────
+
+    #[Computed]
+    public function heldCarts()
+    {
+        return HeldCart::with(['customer', 'holder'])->latest('held_at')->get();
+    }
+
+    /** Parks the sale so another customer can be served, then starts a fresh one. */
+    public function holdSale(): void
+    {
+        if ($this->cart === []) {
+            $this->say('Nothing to hold — add a product first.', true);
+
+            return;
+        }
+
+        $customer = $this->customer_id ? Customer::find($this->customer_id) : null;
+
+        HeldCart::create([
+            'shop_id' => Tenant::id(),
+            'held_by' => auth()->id(),
+            'customer_id' => $customer?->id,
+            'walk_in_name' => $customer ? null : (trim($this->walkInName) ?: null),
+            'walk_in_phone' => $customer ? null : (trim($this->walkInPhone) ?: null),
+            'cart' => array_values($this->cart),
+            'bill_discount_type' => $this->billDiscountType,
+            'bill_discount_value' => $this->billDiscountValue,
+            'notes' => trim($this->notes) ?: null,
+            'item_count' => (int) collect($this->cart)->sum('quantity'),
+            'total_estimate' => $this->totals['total'],
+            'held_at' => now(),
+        ]);
+
+        session()->flash('status', 'Sale put on hold — it is waiting under "Held sales".');
+
+        $this->redirect(route('tenant.pos.register'), navigate: true);
+    }
+
+    /**
+     * Opens the register on a held sale. Refused while there is a sale in
+     * progress: the page reloads, and that sale would be lost.
+     */
+    public function resumeHeld(int $id): void
+    {
+        if ($this->cart !== []) {
+            $this->say('Hold or clear the current sale before resuming another.', true);
+
+            return;
+        }
+
+        $this->redirect(route('tenant.pos.register', ['resume' => $id]), navigate: true);
+    }
+
+    public function discardHeld(int $id): void
+    {
+        HeldCart::find($id)?->delete();
+        unset($this->heldCarts);
+    }
+
+    /**
+     * Loads a held sale into this (fresh) register. Prices come from the
+     * catalog as always; what is checked here is that the stock is still
+     * there — a unit may have sold while it was parked.
+     */
+    private function restoreHeld(int $id): void
+    {
+        $held = HeldCart::find($id);
+
+        if (! $held) {
+            $this->say('That held sale is no longer there.', true);
+
+            return;
+        }
+
+        $lines = collect($held->cart);
+
+        $products = Product::where('is_active', true)->withAvailableQuantity()
+            ->whereIn('id', $lines->pluck('product_id')->all())->get()->keyBy('id');
+        $inStock = ProductSerial::where('status', 'in_stock')
+            ->whereIn('id', $lines->pluck('product_serial_id')->filter()->all())->pluck('id')->all();
+
+        $takenSerials = [];
+        $takenQty = [];
+        $cart = [];
+        $dropped = 0;
+
+        foreach ($lines as $line) {
+            $product = $products->get((int) ($line['product_id'] ?? 0));
+
+            if (! $product) {
+                $dropped += (int) ($line['quantity'] ?? 1);
+
+                continue;
+            }
+
+            $quantity = max(1, (int) ($line['quantity'] ?? 1));
+
+            if ($product->is_serialized) {
+                $serialId = (int) ($line['product_serial_id'] ?? 0);
+
+                if (! in_array($serialId, $inStock, true) || in_array($serialId, $takenSerials, true)) {
+                    $dropped++;
+
+                    continue;
+                }
+
+                $takenSerials[] = $serialId;
+                $quantity = 1;
+            } else {
+                $room = $product->availableQuantity() - ($takenQty[$product->id] ?? 0);
+                $kept = max(0, min($quantity, $room));
+                $dropped += $quantity - $kept;
+
+                if ($kept === 0) {
+                    continue;
+                }
+
+                $takenQty[$product->id] = ($takenQty[$product->id] ?? 0) + $kept;
+                $quantity = $kept;
+            }
+
+            $cart[] = [
+                'product_id' => $product->id,
+                'product_serial_id' => $product->is_serialized ? (int) $line['product_serial_id'] : null,
+                'quantity' => $quantity,
+                'discount_type' => in_array($line['discount_type'] ?? null, PosCalculator::discountTypes(), true) ? $line['discount_type'] : PosCalculator::FIXED,
+                'discount_value' => (string) ($line['discount_value'] ?? ''),
+            ];
+        }
+
+        $customer = $held->customer_id ? Customer::where('is_active', true)->find($held->customer_id) : null;
+
+        $this->cart = $cart;
+        $this->customer_id = $customer?->id;
+        $this->customerLabel = $customer?->full_name ?? '';
+        $this->walkInName = $customer ? '' : (string) $held->walk_in_name;
+        $this->walkInPhone = $customer ? '' : (string) $held->walk_in_phone;
+        $this->billDiscountType = $held->bill_discount_type;
+        $this->billDiscountValue = (string) $held->bill_discount_value;
+        $this->notes = (string) $held->notes;
+
+        $held->delete();
+
+        $this->say($dropped > 0
+            ? "Held sale resumed — {$dropped} ".\Illuminate\Support\Str::plural('item', $dropped).' could not be restored (sold or out of stock meanwhile).'
+            : 'Held sale resumed.', $dropped > 0);
+    }
+
     // ── Totals ──────────────────────────────────────────────────────────
 
     /** @return array<int, array<string, mixed>> */
@@ -570,6 +738,15 @@ new #[Layout('layouts.tenant')] class extends Component
     $onCredit = bcsub($totals['total'], $paidNow, 2);
 @endphp
 
+{{-- Livewire needs a single root element, so the flash message and the
+     register itself share one wrapper. --}}
+<div>
+@if (session('status'))
+    <div class="mb-4 rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+        {{ session('status') }}
+    </div>
+@endif
+
 <div class="grid grid-cols-1 xl:grid-cols-5 gap-6">
     {{-- Catalog ─────────────────────────────────────────────────────── --}}
     <div class="xl:col-span-3 space-y-4">
@@ -601,6 +778,33 @@ new #[Layout('layouts.tenant')] class extends Component
                 </select>
             </div>
         </div>
+
+        {{-- Sales put on hold while another customer was served --}}
+        @if ($this->heldCarts->isNotEmpty())
+            <div class="rounded-2xl border border-sky-200 bg-sky-50/70 p-4 space-y-2" wire:key="held-carts">
+                <p class="text-sm font-semibold text-sky-900">Held sales ({{ $this->heldCarts->count() }})</p>
+                <div class="divide-y divide-sky-100">
+                    @foreach ($this->heldCarts as $held)
+                        <div class="flex items-center justify-between gap-3 py-2" wire:key="held-{{ $held->id }}">
+                            <div class="min-w-0">
+                                <p class="truncate text-sm font-medium text-gray-900">{{ $held->title() }}</p>
+                                <p class="text-xs text-gray-500">
+                                    {{ $held->item_count }} {{ \Illuminate\Support\Str::plural('item', $held->item_count) }}
+                                    · about {{ $money($held->total_estimate) }}
+                                    · {{ $held->held_at->diffForHumans() }}@if ($held->holder) · {{ $held->holder->name }}@endif
+                                </p>
+                            </div>
+                            <div class="flex shrink-0 items-center gap-2">
+                                <button type="button" wire:click="resumeHeld({{ $held->id }})"
+                                    class="rounded-lg bg-sky-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-sky-500">Resume</button>
+                                <button type="button" wire:click="discardHeld({{ $held->id }})" wire:confirm="Discard this held sale?"
+                                    class="rounded-lg px-2 py-1.5 text-xs font-medium text-rose-600 hover:bg-rose-50">Discard</button>
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+        @endif
 
         {{-- Unit picker — a serialized product needs the exact unit chosen --}}
         @if ($this->pickingProduct)
@@ -672,8 +876,11 @@ new #[Layout('layouts.tenant')] class extends Component
                     <span class="text-sm font-normal text-gray-400">({{ $cartCount }} {{ \Illuminate\Support\Str::plural('item', $cartCount) }})</span>
                 </h3>
                 @if (count($cart) > 0)
-                    <button type="button" wire:click="clearCart" wire:confirm="Clear everything on this sale?"
-                        class="text-xs font-medium text-rose-600 hover:underline">Clear</button>
+                    <div class="flex items-center gap-3">
+                        <button type="button" wire:click="holdSale" class="text-xs font-medium text-sky-700 hover:underline">Hold</button>
+                        <button type="button" wire:click="clearCart" wire:confirm="Clear everything on this sale?"
+                            class="text-xs font-medium text-rose-600 hover:underline">Clear</button>
+                    </div>
                 @endif
             </div>
 
@@ -681,6 +888,7 @@ new #[Layout('layouts.tenant')] class extends Component
             <div class="space-y-2">
                 <x-input-label value="Customer" />
                 <x-search-select search-method="searchCustomers" model="customer_id"
+                    :value-label="$customerLabel"
                     placeholder="Walk-in — search to attach a customer…" class="mt-1" />
                 <x-input-error :messages="$errors->get('customer_id')" class="mt-1" />
 
@@ -913,4 +1121,5 @@ new #[Layout('layouts.tenant')] class extends Component
             </button>
         </div>
     </div>
+</div>
 </div>

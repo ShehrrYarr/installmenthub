@@ -7,7 +7,12 @@ use App\Models\InstallmentSchedule;
 use App\Models\Payment;
 use App\Models\Product;
 use App\Models\PurchaseOrder;
+use App\Models\Sale;
+use App\Models\SalePayment;
+use App\Models\SaleReturn;
 use App\Models\VendorLedgerEntry;
+use App\Support\PosReports;
+use App\Support\Tenant;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Livewire\Attributes\Computed;
@@ -120,6 +125,16 @@ new #[Layout('layouts.tenant')] class extends Component
         );
         $expenses = $this->series(Expense::query(), 'expense_date');
 
+        // Counter sales (POS): what was sold, what came in against it, and
+        // what was paid back out as refunds. Zeros when the shop has no POS,
+        // so the sums below stay the same shape.
+        $none = array_fill(0, count($labels), 0.0);
+        $posSales = $this->posEnabled() ? $this->series(Sale::query(), 'sold_at', 'total') : $none;
+        $posCollected = $this->posEnabled() ? $this->series(SalePayment::query(), 'paid_at') : $none;
+        $posRefunds = $this->posEnabled()
+            ? $this->series(SaleReturn::query()->where('refund_amount', '>', 0), 'returned_at', 'refund_amount')
+            : $none;
+
         $sum = fn (array ...$series) => array_map(fn (...$values) => array_sum($values), ...$series);
 
         return [
@@ -129,6 +144,9 @@ new #[Layout('layouts.tenant')] class extends Component
                 'datasets' => [
                     ['label' => 'Agreements Signed', 'data' => $signed, 'color' => '#a16207', 'fill' => 'rgba(161, 98, 7, 0.10)'],
                     ['label' => 'Cash Collected', 'data' => $collected, 'color' => '#059669', 'fill' => 'rgba(5, 150, 105, 0.10)'],
+                    ...($this->posEnabled()
+                        ? [['label' => 'POS Sales', 'data' => $posSales, 'color' => '#7c3aed', 'fill' => 'rgba(124, 58, 237, 0.10)']]
+                        : []),
                 ],
             ],
             'purchases' => [
@@ -142,8 +160,8 @@ new #[Layout('layouts.tenant')] class extends Component
                 'type' => 'line',
                 'labels' => $labels,
                 'datasets' => [
-                    ['label' => 'Cash In', 'data' => $sum($collected, $manualCustomerIn, $vendorRefunds), 'color' => '#059669', 'fill' => 'rgba(5, 150, 105, 0.10)'],
-                    ['label' => 'Cash Out', 'data' => $sum($vendorPayments, $expenses), 'color' => '#e11d48', 'fill' => 'rgba(225, 29, 72, 0.10)'],
+                    ['label' => 'Cash In', 'data' => $sum($collected, $manualCustomerIn, $vendorRefunds, $posCollected), 'color' => '#059669', 'fill' => 'rgba(5, 150, 105, 0.10)'],
+                    ['label' => 'Cash Out', 'data' => $sum($vendorPayments, $expenses, $posRefunds), 'color' => '#e11d48', 'fill' => 'rgba(225, 29, 72, 0.10)'],
                 ],
             ],
         ];
@@ -158,9 +176,34 @@ new #[Layout('layouts.tenant')] class extends Component
         return [
             'signed' => array_sum($charts['sales']['datasets'][0]['data']),
             'collected' => array_sum($charts['sales']['datasets'][1]['data']),
+            'pos_sales' => isset($charts['sales']['datasets'][2]) ? array_sum($charts['sales']['datasets'][2]['data']) : 0,
             'purchases' => array_sum($charts['purchases']['datasets'][0]['data']),
             'cash_in' => array_sum($charts['cashflow']['datasets'][0]['data']),
             'cash_out' => array_sum($charts['cashflow']['datasets'][1]['data']),
+        ];
+    }
+
+    public function posEnabled(): bool
+    {
+        return Tenant::current()?->posEnabled() ?? false;
+    }
+
+    /** Today's counter takings, from the same figures the Day Closing page shows. */
+    #[Computed]
+    public function posToday(): array
+    {
+        return PosReports::day(today());
+    }
+
+    /** Everything still owed on counter sales, and how much of it is past due. */
+    #[Computed]
+    public function posCredit(): array
+    {
+        $owing = Sale::query()->whereRaw(PosReports::balanceSql().' > 0');
+
+        return [
+            'balance' => PosReports::totals($owing)['balance_due'],
+            'overdue' => PosReports::totals((clone $owing)->whereDate('due_date', '<', today()))['balance_due'],
         ];
     }
 
@@ -224,6 +267,17 @@ new #[Layout('layouts.tenant')] class extends Component
         <x-stat-card label="Low Stock Items" :value="$this->lowStockCount" color="sky" />
     </div>
 
+    @if ($this->posEnabled())
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            <x-stat-card label="POS Sales Today" :value="\App\Support\PosCalculator::money($this->posToday['sales_total'])"
+                :hint="$this->posToday['sales_count'].' '.\Illuminate\Support\Str::plural('sale', $this->posToday['sales_count'])" color="walnut" />
+            <x-stat-card label="Cash Taken Today" :value="\App\Support\PosCalculator::money($this->posToday['cash_in'])" color="emerald" />
+            <x-stat-card label="Bank Today" :value="\App\Support\PosCalculator::money($this->posToday['bank_in'])" color="sky" />
+            <x-stat-card label="Owed on POS Credit" :value="\App\Support\PosCalculator::money($this->posCredit['balance'])"
+                :hint="bccomp($this->posCredit['overdue'], '0', 2) > 0 ? \App\Support\PosCalculator::money($this->posCredit['overdue']).' overdue' : null" color="amber" />
+        </div>
+    @endif
+
     <div class="flex items-center justify-between mb-4">
         <h2 class="font-semibold text-gray-900 dark:text-white">Trends</h2>
         <div class="inline-flex rounded-lg border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/60 p-0.5">
@@ -246,6 +300,9 @@ new #[Layout('layouts.tenant')] class extends Component
                 <p class="text-xs text-gray-500 dark:text-gray-400">
                     Signed <span class="font-semibold text-walnut-600 dark:text-walnut-400">Rs. {{ number_format($this->totals['signed'], 0) }}</span>
                     · Collected <span class="font-semibold text-emerald-600 dark:text-emerald-400">Rs. {{ number_format($this->totals['collected'], 0) }}</span>
+                    @if ($this->posEnabled())
+                        · POS <span class="font-semibold text-violet-600 dark:text-violet-400">Rs. {{ number_format($this->totals['pos_sales'], 0) }}</span>
+                    @endif
                 </p>
             </div>
             <div wire:ignore x-data="dashboardChart(@js($this->charts['sales']))"
