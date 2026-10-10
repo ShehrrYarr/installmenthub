@@ -17,6 +17,7 @@ use App\Support\InterestPeriod;
 use App\Support\PaymentMethod;
 use App\Support\Tenant;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Validate;
 use Livewire\Attributes\Layout;
@@ -399,7 +400,7 @@ new #[Layout('layouts.tenant')] class extends Component
 
         return PurchaseOrderItem::where('product_id', $productId)
             ->with('purchaseOrder.vendor')
-            ->withSum('agreementItems as sold_quantity', 'quantity')
+            ->withSum('heldAgreementItems as sold_quantity', 'quantity')
             ->withSum('saleItems as counter_sold_quantity', \App\Models\SaleItem::netQuantityExpression())
             ->oldest()
             ->get()
@@ -408,6 +409,68 @@ new #[Layout('layouts.tenant')] class extends Component
             ->each(fn ($batch) => $batch->sold_quantity = (int) ($batch->sold_quantity ?? 0) + (int) ($batch->counter_sold_quantity ?? 0))
             ->filter(fn ($batch) => $batch->quantity - ($batch->sold_quantity ?? 0) - ($claimedHere[$batch->id] ?? 0) > 0)
             ->values();
+    }
+
+    /**
+     * How many units of this line's non-serialized product are still free,
+     * counting what the other lines of this same form are already taking.
+     */
+    public function stockLeftFor(int $index): int
+    {
+        $product = $this->productFor($index);
+
+        if (! $product) {
+            return 0;
+        }
+
+        $takenElsewhere = collect($this->items)
+            ->except($index)
+            ->where('product_id', $product->id)
+            ->count();
+
+        return $product->availableQuantity() - $takenElsewhere;
+    }
+
+    /**
+     * A non-serialized product has no individual unit to pick, so nothing
+     * else stops an agreement taking more of it than the shop has. Run inside
+     * the saving transaction with the product rows locked, so two people
+     * can't both take the last one.
+     *
+     * @param  array<int, array{product_id: int, product_serial_id: ?int}>  $lines
+     */
+    private function assertStockFor(array $lines): void
+    {
+        $wanted = collect($lines)
+            ->filter(fn (array $line) => ! $line['product_serial_id'])
+            ->countBy('product_id');
+
+        if ($wanted->isEmpty()) {
+            return;
+        }
+
+        $products = Product::whereIn('id', $wanted->keys())->lockForUpdate()->get()->keyBy('id');
+        $errors = [];
+
+        foreach ($wanted as $productId => $quantity) {
+            $product = $products->get($productId);
+            $available = $product->availableQuantity();
+
+            if ($quantity <= $available) {
+                continue;
+            }
+
+            // Pin the message to the first line of that product.
+            $index = collect($lines)->search(fn (array $line) => $line['product_id'] === $productId && ! $line['product_serial_id']);
+
+            $errors["items.{$index}.product_id"] = $available > 0
+                ? "Only {$available} of {$product->name} left in stock."
+                : "{$product->name} is out of stock.";
+        }
+
+        if ($errors) {
+            throw ValidationException::withMessages($errors);
+        }
     }
 
     private function numeric(?string $value): string
@@ -574,6 +637,8 @@ new #[Layout('layouts.tenant')] class extends Component
         [$downPaymentMode, $downPaymentBankId] = PaymentMethod::toStorage($this->downPaymentMode, $this->downPaymentBankId);
 
         $agreement = DB::transaction(function () use ($downPaymentMode, $downPaymentBankId, $lines) {
+            $this->assertStockFor($lines);
+
             $calculator = $this->calculator;
             $schedule = $calculator->schedule($this->startDate, $this->firstDueNextMonth());
 
@@ -797,6 +862,12 @@ new #[Layout('layouts.tenant')] class extends Component
                                     <x-input-error :messages="$errors->get('items.'.$index.'.purchase_order_item_id')" class="mt-1" />
                                     <p class="text-xs text-gray-400 mt-1">Optional — bought from more than one vendor at different prices? Pick the batch this unit came from.</p>
                                 </div>
+                            @endif
+
+                            @if ($product && ! $product->is_serialized && $this->stockLeftFor($index) < 1)
+                                <p class="sm:col-span-12 text-xs text-rose-500">
+                                    {{ $product->name }} is out of stock — it can't go on an agreement until more is received.
+                                </p>
                             @endif
                         </div>
                     </div>

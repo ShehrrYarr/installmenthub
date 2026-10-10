@@ -82,7 +82,8 @@ class Product extends Model implements HasMedia
      * non-serialized product's stock_quantity only ever goes *up* (when a
      * purchase order is received) — nothing decrements it when something is
      * sold — so what's left is the quantity received, less everything that
-     * has since gone out on an agreement or over the counter.
+     * has since gone out on an agreement (one that was cancelled gave its
+     * units back) or over the counter.
      *
      * stock_quantity is cast to SIGNED so MySQL doesn't raise an
      * out-of-range error when the subtraction goes negative.
@@ -93,7 +94,11 @@ class Product extends Model implements HasMedia
             THEN (SELECT COUNT(*) FROM product_serials
                   WHERE product_serials.product_id = products.id AND product_serials.status = 'in_stock')
             ELSE CAST(products.stock_quantity AS SIGNED)
-                - COALESCE((SELECT SUM(agreement_items.quantity) FROM agreement_items WHERE agreement_items.product_id = products.id), 0)
+                - COALESCE((SELECT SUM(agreement_items.quantity) FROM agreement_items
+                            INNER JOIN agreements ON agreements.id = agreement_items.agreement_id
+                            WHERE agreement_items.product_id = products.id
+                              AND agreements.status <> 'cancelled'
+                              AND agreements.deleted_at IS NULL), 0)
                 - COALESCE((SELECT SUM(sale_items.quantity - sale_items.returned_quantity) FROM sale_items WHERE sale_items.product_id = products.id), 0)
             END)";
     }

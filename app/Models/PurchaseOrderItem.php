@@ -51,6 +51,16 @@ class PurchaseOrderItem extends Model
         return $this->hasMany(AgreementItem::class);
     }
 
+    /**
+     * Agreement items that still hold units of this batch - the ones on a
+     * cancelled agreement have gone back. Use this, not agreementItems(), for
+     * anything that counts what is left.
+     */
+    public function heldAgreementItems(): HasMany
+    {
+        return $this->hasMany(AgreementItem::class)->holdingStock();
+    }
+
     /** Units from this batch sold over the counter (POS). */
     public function saleItems(): HasMany
     {
@@ -60,14 +70,13 @@ class PurchaseOrderItem extends Model
     /**
      * How many units from this batch are still unsold. Only meaningful for
      * non-serialized products — serialized units are tracked individually
-     * via ProductSerial.status instead. Sold quantity is never restored
-     * (agreement cancellation doesn't reverse it, matching how a sold
-     * ProductSerial is also never reverted to in_stock).
+     * via ProductSerial.status instead. Units on a cancelled agreement are
+     * counted as unsold again.
      */
     public function remainingQuantity(): int
     {
         return $this->quantity
-            - (int) $this->agreementItems()->sum('quantity')
+            - (int) $this->heldAgreementItems()->sum('quantity')
             - (int) $this->saleItems()->sum(SaleItem::netQuantityExpression());
     }
 }

@@ -8,10 +8,16 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\DB;
 
 class Agreement extends Model
 {
     use BelongsToShop, HasFactory, SoftDeletes;
+
+    public const STATUS_CANCELLED = 'cancelled';
+
+    /** Statuses an agreement can still be cancelled from - once approved it is a live contract. */
+    public const CANCELLABLE_STATUSES = ['draft', 'pending_approval'];
 
     protected $fillable = [
         'shop_id',
@@ -98,6 +104,43 @@ class Agreement extends Model
         return $this->schedules()
             ->selectRaw('COALESCE(SUM(total_due - amount_paid), 0) as balance')
             ->value('balance') ?? '0.00';
+    }
+
+    /**
+     * Cancels an agreement that has not been approved yet and gives back the
+     * stock it was holding: a serial/IMEI unit goes back to in_stock, and a
+     * non-serialized product's quantity stops being counted against stock
+     * (see AgreementItem::scopeHoldingStock()).
+     *
+     * Returns false, changing nothing, if the agreement is not in a
+     * cancellable status - judged against the row as it is now, not as this
+     * instance loaded it, so a stale page can't cancel an approved agreement.
+     */
+    public function cancel(): bool
+    {
+        return DB::transaction(function (): bool {
+            $current = static::query()->whereKey($this->getKey())->lockForUpdate()->first();
+
+            if (! $current || ! in_array($current->status, self::CANCELLABLE_STATUSES, true)) {
+                return false;
+            }
+
+            $current->update(['status' => self::STATUS_CANCELLED]);
+
+            // Only a unit that is actually marked sold goes back - never one
+            // that has since been written off or sold some other way.
+            ProductSerial::whereIn(
+                'id',
+                AgreementItem::where('agreement_id', $current->id)->whereNotNull('product_serial_id')->select('product_serial_id')
+            )
+                ->where('status', 'sold')
+                ->update(['status' => 'in_stock', 'sold_at' => null]);
+
+            $this->setAttribute('status', self::STATUS_CANCELLED);
+            $this->syncOriginalAttribute('status');
+
+            return true;
+        });
     }
 
     public function isActive(): bool

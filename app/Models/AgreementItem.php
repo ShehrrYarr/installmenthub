@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Traits\BelongsToShop;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -26,6 +27,17 @@ class AgreementItem extends Model
         return [
             'unit_price' => 'decimal:2',
         ];
+    }
+
+    /**
+     * Items whose units are still out of the shop's stock - everything except
+     * what sat on a cancelled agreement, which has gone back on the shelf.
+     * Every stock sum over agreement items goes through this, so a cancelled
+     * agreement can never leave stock short.
+     */
+    public function scopeHoldingStock(Builder $query): Builder
+    {
+        return $query->whereHas('agreement', fn ($agreements) => $agreements->where('status', '!=', Agreement::STATUS_CANCELLED));
     }
 
     public function agreement(): BelongsTo

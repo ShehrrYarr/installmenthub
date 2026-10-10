@@ -38,9 +38,14 @@ class ProductSerial extends Model
         return $this->belongsTo(PurchaseOrderItem::class);
     }
 
+    /**
+     * The agreement this unit is on right now. A unit taken off a cancelled
+     * agreement can be sold again, so it may have several agreement items -
+     * the live (newest) one is what counts.
+     */
     public function agreementItem(): HasOne
     {
-        return $this->hasOne(AgreementItem::class);
+        return $this->hasOne(AgreementItem::class)->holdingStock()->latest('id');
     }
 
     public function isAvailable(): bool

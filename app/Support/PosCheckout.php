@@ -311,7 +311,7 @@ final class PosCheckout
     {
         $batches = PurchaseOrderItem::where('product_id', $product->id)
             ->whereHas('purchaseOrder', fn ($query) => $query->where('status', 'received'))
-            ->withSum('agreementItems as agreement_sold', 'quantity')
+            ->withSum('heldAgreementItems as agreement_sold', 'quantity')
             ->withSum('saleItems as pos_sold', SaleItem::netQuantityExpression())
             ->orderBy('id')
             ->get();

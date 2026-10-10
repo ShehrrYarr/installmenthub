@@ -48,11 +48,8 @@ new #[Layout('layouts.tenant')] class extends Component
     {
         abort_unless(auth()->user()->can('approve-agreements'), 403);
 
-        if (! in_array($this->agreement->status, ['draft', 'pending_approval'])) {
-            return;
-        }
-
-        $this->agreement->update(['status' => 'cancelled']);
+        // Also puts the agreement's units back in stock.
+        $this->agreement->cancel();
     }
 
     public function markDefaulted(): void

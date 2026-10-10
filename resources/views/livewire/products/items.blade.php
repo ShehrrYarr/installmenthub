@@ -29,7 +29,7 @@ new #[Layout('layouts.tenant')] class extends Component
     {
         return $this->product->purchaseOrderItems()
             ->with(['purchaseOrder.vendor'])
-            ->withSum('agreementItems as sold_quantity', 'quantity')
+            ->withSum('heldAgreementItems as sold_quantity', 'quantity')
             ->withSum('saleItems as counter_sold_quantity', \App\Models\SaleItem::netQuantityExpression())
             ->orderByDesc('id')
             ->get()
